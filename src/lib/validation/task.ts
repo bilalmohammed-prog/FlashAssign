@@ -24,6 +24,7 @@ export const taskUpdateSchema = z
     description: optionalTextSchema.optional(),
     dueDate: isoDateStringSchema.optional(),
     status: taskStatusInputSchema.optional(),
+    project_id: uuidSchema.nullable().optional(),
   })
   .strict()
   .refine((payload) => Object.keys(payload).length > 0, {

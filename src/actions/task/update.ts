@@ -19,6 +19,7 @@ export async function updateTask(
     description: updates.description,
     dueDate: updates.due_date,
     status: updates.status,
+    project_id: updates.project_id,
   });
 
   const ctx = await requireOrgContext({ organizationId: validatedOrgId });
@@ -32,6 +33,7 @@ export async function updateTask(
       description: validatedUpdates.description,
       due_date: validatedUpdates.dueDate,
       status: normalizeTaskUpdateStatus(validatedUpdates.status),
+      project_id: validatedUpdates.project_id,
     },
   });
 }

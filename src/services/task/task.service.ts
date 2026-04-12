@@ -153,6 +153,7 @@ export async function updateTask(
       description?: string | null;
       due_date?: string | null;
       status?: "todo" | "in_progress" | "blocked" | "done";
+      project_id?: string | null;
     };
   }
 ): Promise<Tables<"tasks">> {

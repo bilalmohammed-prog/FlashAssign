@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { createTask } from "@/actions/task/create";
@@ -87,6 +87,23 @@ export default function EmployeeTasksPage() {
   const [dueDate, setDueDate] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState("");
 
+  const fetchEmployeeTasks = useCallback(async () => {
+    const { data } = await supabase
+      .from("assignments")
+      .select(
+        `
+          task_id,
+          allocated_hours,
+          tasks!inner(id, title, status, due_date, project_id, deleted_at)
+        `
+      )
+      .eq("user_id", employeeId)
+      .eq("organization_id", orgId)
+      .is("tasks.deleted_at", null);
+
+    return mapAssignmentRowsToEmployeeTasks((data ?? []) as AssignmentTaskRow[]);
+  }, [employeeId, orgId]);
+
   useEffect(() => {
     async function load() {
       try {
@@ -98,20 +115,7 @@ export default function EmployeeTasksPage() {
           setEmployeeName(match.name);
         }
 
-        const { data } = await supabase
-          .from("assignments")
-          .select(
-            `
-              task_id,
-              allocated_hours,
-              tasks!inner(id, title, status, due_date, project_id, deleted_at)
-            `
-          )
-          .eq("user_id", employeeId)
-          .eq("organization_id", orgId)
-          .is("tasks.deleted_at", null);
-
-        const normalizedTasks = mapAssignmentRowsToEmployeeTasks((data ?? []) as AssignmentTaskRow[]);
+        const normalizedTasks = await fetchEmployeeTasks();
 
         setTasks(normalizedTasks);
 
@@ -131,11 +135,7 @@ export default function EmployeeTasksPage() {
     if (orgId && employeeId) {
       void load();
     }
-  }, [orgId, employeeId]);
-
-  const projectNameById = useMemo(() => {
-    return new Map(projects.map((p) => [p.id, p.name]));
-  }, [projects]);
+  }, [orgId, employeeId, fetchEmployeeTasks]);
 
   async function handleCreate() {
     if (!title.trim() || !dueDate) {
@@ -183,22 +183,7 @@ export default function EmployeeTasksPage() {
     try {
       await updateTask(taskId, { status }, orgId);
     } catch {
-      const { data } = await supabase
-        .from("assignments")
-        .select(
-          `
-            task_id,
-            allocated_hours,
-            tasks!inner(id, title, status, due_date, project_id, deleted_at)
-          `
-        )
-        .eq("user_id", employeeId)
-        .eq("organization_id", orgId)
-        .is("tasks.deleted_at", null);
-
-      const fallbackTasks = mapAssignmentRowsToEmployeeTasks((data ?? []) as AssignmentTaskRow[]);
-
-      setTasks(fallbackTasks);
+      setTasks(await fetchEmployeeTasks());
     }
   }
 
@@ -217,22 +202,26 @@ export default function EmployeeTasksPage() {
     try {
       await updateTask(taskId, { due_date: nextDueDate || null }, orgId);
     } catch {
-      const { data } = await supabase
-        .from("assignments")
-        .select(
-          `
-            task_id,
-            allocated_hours,
-            tasks!inner(id, title, status, due_date, project_id, deleted_at)
-          `
-        )
-        .eq("user_id", employeeId)
-        .eq("organization_id", orgId)
-        .is("tasks.deleted_at", null);
+      setTasks(await fetchEmployeeTasks());
+    }
+  }
 
-      const fallbackTasks = mapAssignmentRowsToEmployeeTasks((data ?? []) as AssignmentTaskRow[]);
+  async function handleProjectChange(taskId: string, projectId: string | null) {
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.task_id === taskId
+          ? {
+              ...task,
+              project_id: projectId,
+            }
+          : task
+      )
+    );
 
-      setTasks(fallbackTasks);
+    try {
+      await updateTask(taskId, { project_id: projectId }, orgId);
+    } catch {
+      setTasks(await fetchEmployeeTasks());
     }
   }
 
@@ -280,10 +269,40 @@ export default function EmployeeTasksPage() {
               className="grid grid-cols-1 gap-3 rounded-xl border border-border bg-card p-4 md:grid-cols-6 md:items-center"
             >
               <div className="md:col-span-2">
-                <p className="font-medium text-foreground">{task.title}</p>
-                <p className="text-sm text-muted-foreground">
-                  Project: {task.project_id ? (projectNameById.get(task.project_id) ?? task.project_id) : "No project"}
-                </p>
+                <input
+                  value={task.title}
+                  onChange={(e) =>
+                    setTasks((prev) =>
+                      prev.map((t) =>
+                        t.task_id === task.task_id
+                          ? {
+                              ...t,
+                              title: e.target.value,
+                            }
+                          : t
+                      )
+                    )
+                  }
+                  onBlur={(e) => updateTask(task.task_id, { title: e.target.value }, orgId)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  disabled={!canManage}
+                  className="w-full bg-transparent text-[15px] font-medium text-foreground outline-none disabled:cursor-default"
+                />
+                <select
+                  value={task.project_id ?? ""}
+                  onChange={(e) => handleProjectChange(task.task_id, e.target.value || null)}
+                  disabled={!canManage}
+                  className="mt-0.5 bg-transparent text-sm text-muted-foreground outline-none disabled:cursor-default"
+                >
+                  <option value="">No project</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div>
