@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { UserPlus } from "lucide-react";
+import { MessageSquare, UserPlus } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import ComposeMessagePopup from "@/components/ComposeMessagePopup";
@@ -54,14 +54,24 @@ export default function TopBar({ sidebarCollapsed, onToggleSidebar }: TopBarProp
 
       <div className="flex flex-1 justify-center">
         {isTeamPage && (
-          <Button
-            type="button"
-            className="h-9 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-50 shadow-sm hover:bg-zinc-800"
-            onClick={() => setComposeMode("invite")}
-          >
-            <UserPlus className="mr-2 h-4 w-4 opacity-80" strokeWidth={2.5} />
-            Send Message
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              className="h-9 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-50 shadow-sm hover:bg-zinc-800"
+              onClick={() => setComposeMode("message")}
+            >
+              <MessageSquare className="mr-2 h-4 w-4 opacity-80" strokeWidth={2.5} />
+              Send Message
+            </Button>
+            <Button
+              type="button"
+              className="h-9 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-50 shadow-sm hover:bg-zinc-800"
+              onClick={() => setComposeMode("invite")}
+            >
+              <UserPlus className="mr-2 h-4 w-4 opacity-80" strokeWidth={2.5} />
+              Send Invite
+            </Button>
+          </div>
         )}
         {!isTeamPage && isInbox && (
           <Button

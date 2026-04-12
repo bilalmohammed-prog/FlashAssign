@@ -87,9 +87,12 @@ export async function createMessage(
     organization_id: params.organizationId,
     sender_id: params.senderId,
     recipient_id: recipientId ?? null,
-    project_id: projectId ?? null,
     content,
   };
+
+  if (projectId) {
+    insertPayload.project_id = projectId;
+  }
 
   const { data, error } = await supabase
     .from("messages")

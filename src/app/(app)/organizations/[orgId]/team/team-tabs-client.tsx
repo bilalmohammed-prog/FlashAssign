@@ -1,12 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import EmployeeOverviewModal from "@/components/EmployeeOverviewModal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import type { Database } from "@/lib/types/database";
 
 type RoleType = Database["public"]["Enums"]["role_type"];
@@ -62,7 +60,7 @@ export default function TeamTabsClient({
 }: TeamTabsClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [selectedMember, setSelectedMember] = useState<TeamWorkloadRow | null>(null);
+  void addMemberAction;
 
   const canManageMembers = currentRole === "owner" || currentRole === "admin";
 
@@ -114,35 +112,6 @@ export default function TeamTabsClient({
         </TabsList>
 
         <TabsContent value="members" className="space-y-6 pt-2">
-          {canManageMembers && (
-            <div className="rounded-xl border border-border bg-card p-4">
-              <h2 className="text-base font-semibold text-foreground">Send Invite</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Invite a teammate by email and include an invite message.
-              </p>
-              <form action={addMemberAction} className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-                <input type="hidden" name="organizationId" value={organizationId} />
-                <div className="md:col-span-2">
-                  <Input
-                    name="inviteEmail"
-                    type="email"
-                    placeholder="teammate@company.com"
-                    required
-                  />
-                </div>
-                <Input
-                  name="content"
-                  placeholder="Write the invite message"
-                  required
-                  className="md:col-span-2"
-                />
-                <Button type="submit" className="md:justify-self-start">
-                  Send Invite
-                </Button>
-              </form>
-            </div>
-          )}
-
           <div className="space-y-3">
             {sortedMembers.length === 0 && (
               <p className="text-sm text-muted-foreground">No members found.</p>
@@ -217,6 +186,7 @@ export default function TeamTabsClient({
                 <div className="md:col-span-2">
                   <p className="font-medium text-foreground">{member.name}</p>
                   <p className="text-sm text-muted-foreground">{member.email ?? member.user_id}</p>
+                  <p className="text-sm text-muted-foreground">empID: {member.user_id}</p>
                 </div>
 
                 <div className="text-sm text-muted-foreground">
@@ -238,32 +208,11 @@ export default function TeamTabsClient({
                     />
                   </div>
                 </div>
-
-                <div className="md:justify-self-end">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setSelectedMember(member)}
-                    disabled={!member.email}
-                  >
-                    Overview
-                  </Button>
-                </div>
               </div>
             );
           })}
         </TabsContent>
       </Tabs>
-
-      {selectedMember && (
-        <EmployeeOverviewModal
-          employeeId={selectedMember.user_id}
-          employeeEmail={selectedMember.email ?? ""}
-          isOpen={!!selectedMember}
-          onClose={() => setSelectedMember(null)}
-        />
-      )}
     </div>
   );
 }
