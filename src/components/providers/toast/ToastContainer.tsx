@@ -14,11 +14,24 @@ export function ToastContainer() {
             'bg-blue-500'
           }`}
         >
-          <div className="flex items-center justify-between">
-            <span>{toast.message}</span>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col gap-2">
+              <span>{toast.message}</span>
+              {toast.action && (
+                <button
+                  onClick={() => {
+                    toast.action?.onClick();
+                    removeToast(toast.id);
+                  }}
+                  className="w-fit rounded border border-white/40 px-2 py-0.5 text-xs font-medium text-white hover:bg-white/10"
+                >
+                  {toast.action.label}
+                </button>
+              )}
+            </div>
             <button
               onClick={() => removeToast(toast.id)}
-              className="ml-4 text-white hover:text-gray-200"
+              className="ml-2 text-white hover:text-gray-200"
             >
               ×
             </button>

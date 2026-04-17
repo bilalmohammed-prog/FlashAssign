@@ -19,6 +19,11 @@ type TeamSearchParams = {
   message?: string;
 };
 
+type UpdateRoleResult = {
+  ok: boolean;
+  message?: string;
+};
+
 function encodeQueryMessage(message: string): string {
   return encodeURIComponent(message);
 }
@@ -171,19 +176,32 @@ export default async function TeamPage({
     );
   }
 
-  async function updateRoleMutation(formData: FormData) {
+  async function updateRoleMutation(formData: FormData): Promise<UpdateRoleResult> {
     "use server";
     const organizationId = String(formData.get("organizationId") ?? "").trim();
     const userId = String(formData.get("userId") ?? "").trim();
     const role = String(formData.get("role") ?? "employee") as RoleType;
+    const inline = String(formData.get("inline") ?? "") === "1";
+
+    function failInline(message: string): UpdateRoleResult {
+      return { ok: false, message };
+    }
+
+    function redirectOrReturn(message: string): UpdateRoleResult {
+      if (inline) {
+        return failInline(message);
+      }
+
+      redirect(
+        `/organizations/${organizationId}/team?tab=members&status=error&message=${encodeQueryMessage(message)}`
+      );
+    }
 
     const validOrgId = uuidSchema.safeParse(organizationId);
     const validUserId = uuidSchema.safeParse(userId);
 
     if (!validOrgId.success || !validUserId.success) {
-      redirect(
-        `/organizations/${organizationId}/team?tab=members&status=error&message=${encodeQueryMessage("Invalid org/member id")}`
-      );
+      return redirectOrReturn("Invalid org/member id");
     }
 
     const orgCtx = await requireOrgContext({ organizationId });
@@ -197,15 +215,11 @@ export default async function TeamPage({
       .maybeSingle();
 
     if (targetError || !targetMember) {
-      redirect(
-        `/organizations/${organizationId}/team?tab=members&status=error&message=${encodeQueryMessage("Member not found")}`
-      );
+      return redirectOrReturn("Member not found");
     }
 
     if (orgCtx.role === "admin" && (targetMember.role === "owner" || targetMember.role === "admin")) {
-      redirect(
-        `/organizations/${organizationId}/team?tab=members&status=error&message=${encodeQueryMessage("Admins cannot change owner/admin roles")}`
-      );
+      return redirectOrReturn("Admins cannot change owner/admin roles");
     }
 
     if (targetMember.role === "owner" && role !== "owner") {
@@ -216,9 +230,7 @@ export default async function TeamPage({
         .eq("role", "owner");
 
       if ((count ?? 0) <= 1) {
-        redirect(
-          `/organizations/${organizationId}/team?tab=members&status=error&message=${encodeQueryMessage("At least one owner is required")}`
-        );
+        return redirectOrReturn("At least one owner is required");
       }
     }
 
@@ -229,9 +241,11 @@ export default async function TeamPage({
       .eq("user_id", userId);
 
     if (updateError) {
-      redirect(
-        `/organizations/${organizationId}/team?tab=members&status=error&message=${encodeQueryMessage(updateError.message)}`
-      );
+      return redirectOrReturn(updateError.message);
+    }
+
+    if (inline) {
+      return { ok: true, message: "Role updated" };
     }
 
     revalidatePath(`/organizations/${organizationId}/team`);

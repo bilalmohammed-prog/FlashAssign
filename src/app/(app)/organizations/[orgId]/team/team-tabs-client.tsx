@@ -5,6 +5,24 @@ import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/components/providers/toast";
 import type { Database } from "@/lib/types/database";
 
 type RoleType = Database["public"]["Enums"]["role_type"];
@@ -36,8 +54,14 @@ type TeamTabsClientProps = {
   roleOptions: RoleType[];
   currentRole: string;
   addMemberAction: (formData: FormData) => Promise<void>;
-  updateRoleAction: (formData: FormData) => Promise<void>;
+  updateRoleAction: (formData: FormData) => Promise<{ ok: boolean; message?: string }>;
   removeMemberAction: (formData: FormData) => Promise<void>;
+};
+
+type PendingRoleChange = {
+  userId: string;
+  previousRole: RoleType;
+  nextRole: RoleType;
 };
 
 function completionPct(done: number, total: number): number {
@@ -67,6 +91,10 @@ export default function TeamTabsClient({
   const [workloadRoleFilter, setWorkloadRoleFilter] = useState<"all" | RoleType>("all");
   const [workloadPage, setWorkloadPage] = useState(1);
   const [workloadPageSize, setWorkloadPageSize] = useState(10);
+  const [roleOverrides, setRoleOverrides] = useState<Record<string, RoleType>>({});
+  const [pendingRoleChange, setPendingRoleChange] = useState<PendingRoleChange | null>(null);
+  const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
+  const { addToast } = useToast();
   void addMemberAction;
 
   const canManageMembers = currentRole === "owner" || currentRole === "admin";
@@ -126,6 +154,83 @@ export default function TeamTabsClient({
     const start = (safeWorkloadPage - 1) * workloadPageSize;
     return filteredWorkload.slice(start, start + workloadPageSize);
   }, [filteredWorkload, safeWorkloadPage, workloadPageSize]);
+
+  const getEffectiveRole = (member: TeamMemberRow): RoleType => {
+    return roleOverrides[member.user_id] ?? member.role;
+  };
+
+  async function submitRoleUpdate(userId: string, previousRole: RoleType, nextRole: RoleType) {
+    if (previousRole === nextRole) {
+      return;
+    }
+
+    setRoleOverrides((prev) => ({
+      ...prev,
+      [userId]: nextRole,
+    }));
+    setUpdatingMemberId(userId);
+
+    const formData = new FormData();
+    formData.set("organizationId", organizationId);
+    formData.set("userId", userId);
+    formData.set("role", nextRole);
+    formData.set("inline", "1");
+
+    const result = await updateRoleAction(formData);
+
+    if (!result.ok) {
+      setRoleOverrides((prev) => ({
+        ...prev,
+        [userId]: previousRole,
+      }));
+      setUpdatingMemberId(null);
+      addToast(result.message ?? "Failed to update role", "error");
+      return;
+    }
+
+    setUpdatingMemberId(null);
+    addToast(`Role updated to ${nextRole}`, "success", {
+      label: "Undo",
+      onClick: () => {
+        void submitRoleUpdate(userId, nextRole, previousRole);
+      },
+    });
+  }
+
+  function onRoleSelect(member: TeamMemberRow, selectedRole: RoleType) {
+    const previousRole = getEffectiveRole(member);
+
+    if (selectedRole === previousRole) {
+      return;
+    }
+
+    const toOwner = selectedRole === "owner";
+    const fromOwner = previousRole === "owner" && !toOwner;
+    const requiresConfirmation = toOwner || fromOwner;
+
+    if (requiresConfirmation) {
+      setPendingRoleChange({
+        userId: member.user_id,
+        previousRole,
+        nextRole: selectedRole,
+      });
+      return;
+    }
+
+    void submitRoleUpdate(member.user_id, previousRole, selectedRole);
+  }
+
+  function roleBadgeClass(role: RoleType): string {
+    if (role === "owner") {
+      return "border-indigo-300 bg-indigo-50 text-indigo-700";
+    }
+
+    if (role === "employee") {
+      return "border-zinc-300 bg-zinc-100 text-zinc-700";
+    }
+
+    return "";
+  }
 
   return (
     <div className="space-y-6">
@@ -230,31 +335,29 @@ export default function TeamTabsClient({
                           </Link>
                         </td>
                         <td className="px-4 py-3">
-                          <Badge variant="outline" className="w-fit">
-                            {member.role}
+                          <Badge variant="outline" className={`w-fit ${roleBadgeClass(getEffectiveRole(member))}`}>
+                            {getEffectiveRole(member)}
                           </Badge>
                         </td>
                         <td className="px-4 py-3">
                           {canManageMembers ? (
                             <div className="flex flex-wrap items-center gap-2">
-                              <form action={updateRoleAction} className="flex items-center gap-2">
-                                <input type="hidden" name="organizationId" value={organizationId} />
-                                <input type="hidden" name="userId" value={member.user_id} />
-                                <select
-                                  name="role"
-                                  defaultValue={member.role}
-                                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                                >
+                              <Select
+                                value={getEffectiveRole(member)}
+                                onValueChange={(value) => onRoleSelect(member, value as RoleType)}
+                                disabled={updatingMemberId === member.user_id}
+                              >
+                                <SelectTrigger className="h-9 min-w-36 bg-background text-sm">
+                                  <SelectValue placeholder="Select role" />
+                                </SelectTrigger>
+                                <SelectContent>
                                   {roleOptions.map((role) => (
-                                    <option key={`${member.user_id}-${role}`} value={role}>
+                                    <SelectItem key={`${member.user_id}-${role}`} value={role}>
                                       {role}
-                                    </option>
+                                    </SelectItem>
                                   ))}
-                                </select>
-                                <Button type="submit" size="sm" variant="outline">
-                                  Update Role
-                                </Button>
-                              </form>
+                                </SelectContent>
+                              </Select>
                               <form action={removeMemberAction}>
                                 <input type="hidden" name="organizationId" value={organizationId} />
                                 <input type="hidden" name="userId" value={member.user_id} />
@@ -443,6 +546,40 @@ export default function TeamTabsClient({
           </div>
         </TabsContent>
       </Tabs>
+
+      <AlertDialog
+        open={pendingRoleChange !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setPendingRoleChange(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm critical role change</AlertDialogTitle>
+            <AlertDialogDescription>
+              Changing ownership impacts organization control. Are you sure you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!pendingRoleChange) {
+                  return;
+                }
+
+                const { userId, previousRole, nextRole } = pendingRoleChange;
+                setPendingRoleChange(null);
+                void submitRoleUpdate(userId, previousRole, nextRole);
+              }}
+            >
+              Confirm change
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
