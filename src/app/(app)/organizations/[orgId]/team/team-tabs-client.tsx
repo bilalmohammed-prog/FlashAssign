@@ -59,6 +59,10 @@ export default function TeamTabsClient({
   removeMemberAction,
 }: TeamTabsClientProps) {
   const [activeTab, setActiveTab] = useState<"members" | "workload">(selectedTab);
+  const [memberQuery, setMemberQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"all" | RoleType>("all");
+  const [membersPage, setMembersPage] = useState(1);
+  const [membersPageSize, setMembersPageSize] = useState(10);
   void addMemberAction;
 
   const canManageMembers = currentRole === "owner" || currentRole === "admin";
@@ -67,6 +71,29 @@ export default function TeamTabsClient({
     () => [...members].sort((a, b) => a.name.localeCompare(b.name)),
     [members]
   );
+
+  const filteredMembers = useMemo(() => {
+    const normalizedQuery = memberQuery.trim().toLowerCase();
+
+    return sortedMembers.filter((member) => {
+      const matchesRole = roleFilter === "all" || member.role === roleFilter;
+
+      if (!normalizedQuery) {
+        return matchesRole;
+      }
+
+      const haystack = `${member.name} ${member.email ?? ""}`.toLowerCase();
+      return matchesRole && haystack.includes(normalizedQuery);
+    });
+  }, [memberQuery, roleFilter, sortedMembers]);
+
+  const totalMemberPages = Math.max(1, Math.ceil(filteredMembers.length / membersPageSize));
+  const safeMembersPage = Math.min(membersPage, totalMemberPages);
+
+  const pagedMembers = useMemo(() => {
+    const start = (safeMembersPage - 1) * membersPageSize;
+    return filteredMembers.slice(start, start + membersPageSize);
+  }, [filteredMembers, safeMembersPage, membersPageSize]);
 
   const sortedWorkload = useMemo(
     () => [...workload].sort((a, b) => b.totalTasks - a.totalTasks),
@@ -105,62 +132,149 @@ export default function TeamTabsClient({
         </TabsList>
 
         <TabsContent value="members" className="space-y-6 pt-2">
-          <div className="space-y-3">
-            {sortedMembers.length === 0 && (
-              <p className="text-sm text-muted-foreground">No members found.</p>
-            )}
-
-            {sortedMembers.map((member) => (
-              <div
-                key={member.user_id}
-                className="grid grid-cols-1 items-center gap-3 rounded-xl border border-border bg-card p-4 md:grid-cols-5"
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center">
+              <input
+                value={memberQuery}
+                onChange={(e) => {
+                  setMemberQuery(e.target.value);
+                  setMembersPage(1);
+                }}
+                placeholder="Search by name or email..."
+                className="h-9 flex-1 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+              />
+              <select
+                value={roleFilter}
+                onChange={(e) => {
+                  setRoleFilter(e.target.value as "all" | RoleType);
+                  setMembersPage(1);
+                }}
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground"
               >
-                <Link
-                  href={`/organizations/${organizationId}/employees/${member.user_id}`}
-                  className="block rounded-md transition-colors hover:text-zinc-700 md:col-span-2"
-                >
-                  <p className="font-medium text-foreground">{member.name}</p>
-                  <p className="text-sm text-muted-foreground">{member.email ?? member.user_id}</p>
-                </Link>
+                <option value="all">All roles</option>
+                {roleOptions.map((role) => (
+                  <option key={`filter-${role}`} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={String(membersPageSize)}
+                onChange={(e) => {
+                  setMembersPageSize(Number(e.target.value));
+                  setMembersPage(1);
+                }}
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+              >
+                <option value="10">10 / page</option>
+                <option value="25">25 / page</option>
+                <option value="50">50 / page</option>
+              </select>
+            </div>
 
-                <Badge variant="outline" className="w-fit">
-                  {member.role}
-                </Badge>
+            <div className="overflow-hidden rounded-xl border border-border bg-card">
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                      <th className="px-4 py-3 font-medium">Member</th>
+                      <th className="px-4 py-3 font-medium">Role</th>
+                      <th className="px-4 py-3 font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagedMembers.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                          No members found.
+                        </td>
+                      </tr>
+                    )}
 
-                {canManageMembers ? (
-                  <form action={updateRoleAction} className="flex items-center gap-2">
-                    <input type="hidden" name="organizationId" value={organizationId} />
-                    <input type="hidden" name="userId" value={member.user_id} />
-                    <select
-                      name="role"
-                      defaultValue={member.role}
-                      className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                    >
-                      {roleOptions.map((role) => (
-                        <option key={`${member.user_id}-${role}`} value={role}>
-                          {role}
-                        </option>
-                      ))}
-                    </select>
-                    <Button type="submit" size="sm" variant="outline">
-                      Update Role
-                    </Button>
-                  </form>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Read-only</p>
-                )}
-
-                {canManageMembers && (
-                  <form action={removeMemberAction} className="md:justify-self-end">
-                    <input type="hidden" name="organizationId" value={organizationId} />
-                    <input type="hidden" name="userId" value={member.user_id} />
-                    <Button type="submit" size="sm" variant="destructive">
-                      Remove
-                    </Button>
-                  </form>
-                )}
+                    {pagedMembers.map((member) => (
+                      <tr key={member.user_id} className="border-b border-border last:border-0">
+                        <td className="px-4 py-3">
+                          <Link
+                            href={`/organizations/${organizationId}/employees/${member.user_id}`}
+                            className="block rounded-md transition-colors hover:text-zinc-700"
+                          >
+                            <p className="font-medium text-foreground">{member.name}</p>
+                            <p className="text-sm text-muted-foreground">{member.email ?? member.user_id}</p>
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant="outline" className="w-fit">
+                            {member.role}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          {canManageMembers ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <form action={updateRoleAction} className="flex items-center gap-2">
+                                <input type="hidden" name="organizationId" value={organizationId} />
+                                <input type="hidden" name="userId" value={member.user_id} />
+                                <select
+                                  name="role"
+                                  defaultValue={member.role}
+                                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                                >
+                                  {roleOptions.map((role) => (
+                                    <option key={`${member.user_id}-${role}`} value={role}>
+                                      {role}
+                                    </option>
+                                  ))}
+                                </select>
+                                <Button type="submit" size="sm" variant="outline">
+                                  Update Role
+                                </Button>
+                              </form>
+                              <form action={removeMemberAction}>
+                                <input type="hidden" name="organizationId" value={organizationId} />
+                                <input type="hidden" name="userId" value={member.user_id} />
+                                <Button type="submit" size="sm" variant="destructive">
+                                  Remove
+                                </Button>
+                              </form>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Read-only</p>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
+            </div>
+
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <p>
+                Showing {pagedMembers.length} of {filteredMembers.length} members
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={membersPage <= 1}
+                  onClick={() => setMembersPage((prev) => Math.max(1, prev - 1))}
+                >
+                  Prev
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Page {safeMembersPage} of {totalMemberPages}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={safeMembersPage >= totalMemberPages}
+                  onClick={() => setMembersPage((prev) => Math.min(totalMemberPages, prev + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           </div>
         </TabsContent>
 
