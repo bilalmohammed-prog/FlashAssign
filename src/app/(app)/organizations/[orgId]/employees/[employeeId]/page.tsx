@@ -265,21 +265,13 @@ export default function EmployeeTasksPage() {
   }
 
   return (
-    <div className="flex w-full max-w-5xl flex-col space-y-8 pb-16">
+    <div className="flex w-full max-w-5xl flex-col gap-4 pb-12">
       <div className="flex items-center justify-between">
-        <div>
-          <Link
-            href={`/organizations/${orgId}/team`}
-            className="text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900"
-          >
-            ← Back to Team
-          </Link>
-          <h1 className="mt-2 text-2xl font-bold tracking-tight text-zinc-900">Tasks - {employeeName}</h1>
-        </div>
+        <h1 className="text-lg font-semibold tracking-tight text-zinc-900">Tasks · {employeeName}</h1>
 
         {canManage && (
           <Button
-            className="h-10 border-transparent bg-indigo-600 px-5 font-medium text-white shadow-sm hover:bg-indigo-700"
+            className="h-9 border-transparent bg-indigo-600 px-4 font-medium text-white shadow-sm hover:bg-indigo-700"
             onClick={() => setShowCreate(true)}
           >
             <Plus className="mr-2 h-4 w-4 opacity-90" />
@@ -288,7 +280,7 @@ export default function EmployeeTasksPage() {
         )}
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
         {loading && (
           <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
             Loading tasks...
@@ -296,7 +288,7 @@ export default function EmployeeTasksPage() {
         )}
 
         {!loading && tasks.length === 0 && (
-          <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+          <div className="rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">
             No tasks assigned to this employee.
           </div>
         )}
@@ -305,9 +297,9 @@ export default function EmployeeTasksPage() {
           tasks.map((task) => (
             <div
               key={task.task_id}
-              className="grid grid-cols-1 gap-3 rounded-xl border border-border bg-card p-4 md:grid-cols-6 md:items-center"
+              className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-card px-4 py-3 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1fr)] md:items-center"
             >
-              <div className="space-y-1 md:col-span-2">
+              <div className="space-y-2">
                 <input
                   value={task.title}
                   onChange={(e) =>
@@ -340,7 +332,7 @@ export default function EmployeeTasksPage() {
                   }}
                   disabled={!canManage}
                 >
-                  <SelectTrigger className="h-8 w-fit min-w-44 border-none bg-transparent px-0 text-sm text-muted-foreground shadow-none focus-visible:ring-0">
+                  <SelectTrigger className="h-7 w-fit min-w-40 border-none bg-transparent px-0 text-sm text-muted-foreground shadow-none focus-visible:ring-0">
                     <SelectValue placeholder="No project" />
                   </SelectTrigger>
                   <SelectContent>
@@ -372,11 +364,10 @@ export default function EmployeeTasksPage() {
                   rows={2}
                   disabled={!canManage}
                   placeholder="Add description"
-                  className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground outline-none disabled:cursor-default"
+                  className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground placeholder:text-zinc-400 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 disabled:cursor-default"
                 />
               </div>
-
-              <div>
+              <div className="flex items-center gap-2 md:justify-end">
                 <Select
                   value={(task.status ?? "todo") as TaskStatus}
                   onValueChange={(value) => {
@@ -384,7 +375,7 @@ export default function EmployeeTasksPage() {
                   }}
                   disabled={!canManage}
                 >
-                  <SelectTrigger className="h-9 w-full bg-background text-sm">
+                  <SelectTrigger className="h-9 w-full min-w-36 bg-background text-sm">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -394,20 +385,13 @@ export default function EmployeeTasksPage() {
                     <SelectItem value="done">Completed</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div>
                 <input
                   type="date"
                   value={task.due_date ?? ""}
                   onChange={(e) => handleDueDateChange(task.task_id, e.target.value)}
-                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  className="h-9 w-full min-w-40 rounded-md border border-input bg-background px-3 text-sm"
                   disabled={!canManage}
                 />
-              </div>
-
-              <div className="text-sm text-muted-foreground md:col-span-2">
-                Hours: {task.allocated_hours ?? "-"}
               </div>
             </div>
           ))}

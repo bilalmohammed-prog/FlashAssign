@@ -19,6 +19,7 @@ import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { AppModal } from "@/components/ui/app-modal";
 import { Input } from "@/components/ui/input";
+import { ExpandableDescription } from "@/components/tasks/ExpandableDescription";
 import { useToast } from "@/components/providers/toast";
 
 type TaskWithAssignee = Tables<"tasks"> & {
@@ -72,11 +73,13 @@ export default function ProjectWorkspacePage() {
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
+  const [createDescription, setCreateDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState<string>("");
   const [projectName, setProjectName] = useState("Project");
   const [showManageMembers, setShowManageMembers] = useState(false);
   const [showAddMembers, setShowAddMembers] = useState(false);
+  const [showCreateDescription, setShowCreateDescription] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
   const [selectedMembersToAdd, setSelectedMembersToAdd] = useState<string[]>([]);
   const [selectedMembersToRemove, setSelectedMembersToRemove] = useState<string[]>([]);
@@ -160,7 +163,13 @@ export default function ProjectWorkspacePage() {
     try {
       setCreating(true);
 
-      const created = await createTask(title.trim(), "", dueDate, orgId, projectId);
+      const created = await createTask(
+        title.trim(),
+        createDescription.trim() || undefined,
+        dueDate,
+        orgId,
+        projectId
+      );
       const newTask: TaskWithAssignee = {
         ...created,
         assignee_id: null,
@@ -175,6 +184,8 @@ export default function ProjectWorkspacePage() {
 
       setTasks((prev) => [newTask, ...prev]);
       setTitle("");
+      setCreateDescription("");
+      setShowCreateDescription(false);
       setDueDate("");
       setSelectedEmployee("");
       setShowCreate(false);
@@ -356,6 +367,15 @@ export default function ProjectWorkspacePage() {
                       }}
                       className={`w-full truncate bg-transparent text-[15px] font-medium outline-none ${task.status === "done" ? "text-zinc-500" : "text-zinc-900"}`}
                     />
+                    <ExpandableDescription
+                      value={task.description ?? ""}
+                      onChange={(nextValue) => updateLocal(task.id, { description: nextValue })}
+                      onCommit={(nextValue) => {
+                        void commitUpdate(task.id, { description: nextValue.trim() ? nextValue : null });
+                      }}
+                      disabled={!canManage}
+                      className="mt-1"
+                    />
                     <div className="mt-1.5 flex items-center gap-3 text-xs text-zinc-500 md:hidden">
                       <span className={`rounded px-2 py-0.5 text-xs font-medium ${getTaskStatusBadgeClass(task.status)}`}>
                         {getTaskStatusLabel(task.status)}
@@ -462,11 +482,22 @@ export default function ProjectWorkspacePage() {
         <AppModal
           title="Add Task"
           description="Create a task and optionally assign it right away."
-          onClose={() => setShowCreate(false)}
+          onClose={() => {
+            setShowCreate(false);
+            setShowCreateDescription(false);
+          }}
           widthClassName="w-[380px]"
           footer={
             <>
-              <Button variant="outline" onClick={() => setShowCreate(false)} disabled={creating} className="h-8 px-3 text-sm text-zinc-600">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowCreate(false);
+                  setShowCreateDescription(false);
+                }}
+                disabled={creating}
+                className="h-8 px-3 text-sm text-zinc-600"
+              >
                 Cancel
               </Button>
               <Button
@@ -518,6 +549,25 @@ export default function ProjectWorkspacePage() {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setShowCreateDescription((prev) => !prev)}
+              className="inline-flex items-center text-xs font-medium text-zinc-500 transition-colors hover:text-zinc-800"
+            >
+              {showCreateDescription ? "Description" : "+ Add Description"}
+            </button>
+            {showCreateDescription && (
+              <textarea
+                value={createDescription}
+                onChange={(e) => setCreateDescription(e.target.value)}
+                rows={2}
+                placeholder="Add description"
+                className="w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700 placeholder:text-zinc-400 outline-none transition-[border-color,box-shadow] focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+              />
+            )}
           </div>
         </AppModal>
       )}
