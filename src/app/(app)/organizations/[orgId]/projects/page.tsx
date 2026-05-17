@@ -6,14 +6,16 @@ import { listOrgMembers } from "@/actions/organization/listOrgMembers";
 import { assignProjectMember } from "@/actions/project/assignProjectMember";
 import { listProjectMembers } from "@/actions/project/listProjectMembers";
 import { updateProjectAction } from "@/actions/project/update";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { useParams, useRouter } from "next/navigation";
 import { deleteProject } from "@/actions/project/deleteProject";
 import { useToast } from "@/components/providers/toast";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Calendar, MoreHorizontal, Plus } from "lucide-react";
+import { Calendar, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { createPortal } from "react-dom";
 
 type ProjectStatus = "active" | "paused" | "archived";
 
@@ -36,6 +38,24 @@ type ProjectRow = {
   deleted_at: string | null;
 };
 
+type FloatingPanelPosition = {
+  top: number;
+  left: number;
+};
+
+type ProjectActionMenuState = {
+  projectId: string;
+  projectName: string;
+  triggerRect: DOMRect;
+};
+
+type RenameProjectState = {
+  projectId: string;
+  projectName: string;
+  draftName: string;
+  triggerRect: DOMRect;
+};
+
 function formatDate(date?: string | null) {
   if (!date) return "-";
   try {
@@ -55,6 +75,25 @@ function getStatusBadgeClass(status: ProjectStatus) {
   }
 
   return "bg-zinc-100 text-zinc-700 border-zinc-200/60";
+}
+
+function getFloatingPanelPosition(triggerRect: DOMRect, panelWidth: number, panelHeight: number): FloatingPanelPosition {
+  const viewportPadding = 12;
+  const gap = 8;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const openUpward = triggerRect.bottom + panelHeight + gap > viewportHeight - viewportPadding;
+
+  const top = openUpward
+    ? Math.max(viewportPadding, triggerRect.top - panelHeight - gap)
+    : Math.min(triggerRect.bottom + gap, viewportHeight - panelHeight - viewportPadding);
+
+  const left = Math.min(
+    Math.max(triggerRect.right - panelWidth, viewportPadding),
+    viewportWidth - panelWidth - viewportPadding
+  );
+
+  return { top, left };
 }
 
 export default function ProjectsPage() {
@@ -84,6 +123,10 @@ export default function ProjectsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [savingProjectId, setSavingProjectId] = useState<string | null>(null);
   const [openDuePopoverId, setOpenDuePopoverId] = useState<string | null>(null);
+  const [actionsMenu, setActionsMenu] = useState<ProjectActionMenuState | null>(null);
+  const [renameCard, setRenameCard] = useState<RenameProjectState | null>(null);
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null);
+  const renameCardRef = useRef<HTMLDivElement | null>(null);
 
   const PAGE_SIZE = 12;
 
@@ -260,6 +303,65 @@ export default function ProjectsPage() {
     loadProjects();
   }, [loadProjects]);
 
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as HTMLElement;
+      if (!actionsMenuRef.current?.contains(target) && !renameCardRef.current?.contains(target)) {
+        setActionsMenu(null);
+        setRenameCard(null);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setActionsMenu(null);
+        setRenameCard(null);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  function openActionsMenu(project: Project, triggerRect: DOMRect) {
+    setRenameCard(null);
+    setActionsMenu({ projectId: project.id, projectName: project.name, triggerRect });
+  }
+
+  function openRenameCard(projectId: string, projectName: string, triggerRect: DOMRect) {
+    setActionsMenu(null);
+    setRenameCard({
+      projectId,
+      projectName,
+      draftName: projectName,
+      triggerRect,
+    });
+  }
+
+  async function saveRenamedProject() {
+    if (!renameCard) return;
+
+    const nextName = renameCard.draftName.trim();
+    if (!nextName || nextName === renameCard.projectName.trim()) {
+      setRenameCard(null);
+      return;
+    }
+
+    try {
+      await updateProjectAction(renameCard.projectId, { name: nextName });
+      setProjects((prev) => prev.map((project) => (project.id === renameCard.projectId ? { ...project, name: nextName } : project)));
+      addToast("Project renamed", "success");
+      setRenameCard(null);
+    } catch {
+      addToast("Failed to rename project", "error");
+    }
+  }
+
   return (
     <div className="flex w-full max-w-6xl flex-col gap-4 pb-12">
       <div className="rounded-xl border border-zinc-200 bg-white px-3 py-3 shadow-sm">
@@ -408,19 +510,12 @@ export default function ProjectsPage() {
                         </div>
                       </div>
 
-                      <div className="hidden md:flex md:items-center md:gap-2">
-                        <div className="flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 text-xs font-medium text-zinc-700">{meta.owner ? meta.owner.charAt(0) : "-"}</div>
-                        <span className="text-sm text-zinc-700 truncate">{meta.owner ?? "—"}</span>
+                      <div className="hidden min-w-0 md:flex md:items-center">
+                        <span className="truncate text-sm text-zinc-700">{meta.owner ?? "—"}</span>
                       </div>
 
                       <div className="hidden md:flex md:items-center">
-                        <div className="flex items-center -space-x-2">
-                          {/* compact avatar stack */}
-                          {Array.from({ length: Math.min(meta.memberCount ?? 0, 3) }).map((_, idx) => (
-                            <div key={idx} className="h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-zinc-100 text-[10px] font-bold text-zinc-700 shadow-sm ring-1 ring-zinc-200/50 flex">{/* placeholder */}M</div>
-                          ))}
-                        </div>
-                        <span className="ml-2 text-sm text-zinc-600">{meta.memberCount ?? 0}</span>
+                        <span className="text-sm tabular-nums text-zinc-600">{meta.memberCount ?? 0}</span>
                       </div>
 
                       <div className="hidden md:flex md:items-center md:gap-2">
@@ -506,12 +601,17 @@ export default function ProjectsPage() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDelete(p.id);
+                              if (actionsMenu?.projectId === p.id) {
+                                setActionsMenu(null);
+                              } else {
+                                openActionsMenu(p, e.currentTarget.getBoundingClientRect());
+                              }
                             }}
-                            className="rounded-lg p-1.5 text-zinc-400 opacity-0 transition-colors group-hover:opacity-100 hover:bg-zinc-100 hover:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-900 md:opacity-100"
-                            aria-label={`Delete ${p.name}`}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white/90 text-zinc-500 shadow-sm transition-all hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 md:opacity-100"
+                            aria-label={`Project actions for ${p.name}`}
+                            aria-expanded={actionsMenu?.projectId === p.id}
                           >
-                            <MoreHorizontal className="h-5 w-5" />
+                            <MoreHorizontal className="h-4 w-4" />
                           </button>
                         )}
                       </div>
@@ -521,6 +621,104 @@ export default function ProjectsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {typeof document !== "undefined" && actionsMenu && createPortal(
+        <div
+          ref={actionsMenuRef}
+          className="fixed z-[70] w-56 overflow-hidden rounded-xl border border-zinc-200 bg-white p-1.5 shadow-xl shadow-zinc-200/70"
+          style={{
+            ...getFloatingPanelPosition(actionsMenu.triggerRect, 224, 112),
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-2 pb-1 pt-0.5 text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+            {actionsMenu.projectName}
+          </div>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openRenameCard(actionsMenu.projectId, actionsMenu.projectName, e.currentTarget.getBoundingClientRect());
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-50 hover:text-zinc-900 focus:bg-zinc-50 focus:outline-none"
+          >
+            <Pencil className="h-4 w-4 text-zinc-500" />
+            Rename Project
+          </button>
+
+          <button
+            type="button"
+            onClick={async (e) => {
+              e.stopPropagation();
+              setActionsMenu(null);
+              await handleDelete(actionsMenu.projectId);
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 focus:bg-red-50 focus:outline-none"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete Project
+          </button>
+        </div>,
+        document.body
+      )}
+
+      {typeof document !== "undefined" && renameCard && createPortal(
+        <div
+          ref={renameCardRef}
+          className="fixed z-[80] w-[320px] rounded-xl border border-zinc-200 bg-white p-4 shadow-2xl shadow-zinc-200/80"
+          style={{
+            ...getFloatingPanelPosition(renameCard.triggerRect, 320, 176),
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-zinc-900">Rename Project</p>
+              <p className="mt-0.5 text-xs text-zinc-500">Update the project name inline.</p>
+            </div>
+          </div>
+
+          <Input
+            autoFocus
+            value={renameCard.draftName}
+            onChange={(e) => setRenameCard((prev) => (prev ? { ...prev, draftName: e.target.value } : prev))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void saveRenamedProject();
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setRenameCard(null);
+              }
+            }}
+            className="h-9"
+            placeholder="Project name"
+          />
+
+          <div className="mt-4 flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRenameCard(null)}
+              className="h-8"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                void saveRenamedProject();
+              }}
+              className="h-8 bg-indigo-500 text-white hover:bg-indigo-600"
+            >
+              Save
+            </Button>
+          </div>
+        </div>,
+        document.body
       )}
 
       {hasMore && !loading && (

@@ -10,12 +10,29 @@
 
 html {
   min-height: 100%;
+  scrollbar-gutter: stable;
+  scrollbar-width: none;
 }
 
 body {
   min-height: 100dvh;
   width: 100%;
   overflow-x: hidden;
+  scrollbar-gutter: stable;
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+html,
+body,
+* {
+  -ms-overflow-style: none;
 }
 
 :root {
