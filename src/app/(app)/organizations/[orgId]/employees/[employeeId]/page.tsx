@@ -10,6 +10,7 @@ import { assignTaskToResource } from "@/actions/task/assign";
 import { listOrgMembers } from "@/actions/organization/listOrgMembers";
 import { supabase } from "@/lib/supabase/client";
 import { useOrgRole } from "@/hooks/useOrgRole";
+import { usePageHeader } from "@/components/layout/PageHeaderContext";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -87,6 +88,7 @@ export default function EmployeeTasksPage() {
   const role = useOrgRole();
   const canManage = role === "owner" || role === "admin" || role === "manager";
   const { addToast } = useToast();
+  const { setPageHeader } = usePageHeader();
 
   const { orgId, employeeId } = useParams<{ orgId: string; employeeId: string }>();
   const [tasks, setTasks] = useState<EmployeeTask[]>([]);
@@ -149,6 +151,30 @@ export default function EmployeeTasksPage() {
       void load();
     }
   }, [orgId, employeeId, fetchEmployeeTasks]);
+
+  useEffect(() => {
+    setPageHeader(
+      <div className="flex w-full items-center justify-between gap-2">
+        <h1 className="truncate text-lg font-semibold tracking-tight text-zinc-900">
+          Tasks · {employeeName}
+        </h1>
+
+        {canManage && (
+          <Button
+            className="h-8 border-transparent bg-indigo-600 px-3.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
+            onClick={() => setShowCreate(true)}
+          >
+            <Plus className="mr-2 h-4 w-4 opacity-90" />
+            Add Task
+          </Button>
+        )}
+      </div>
+    );
+
+    return () => {
+      setPageHeader(null);
+    };
+  }, [canManage, employeeName, setPageHeader]);
 
   async function handleCreate() {
     if (!title.trim() || !dueDate) {
@@ -265,21 +291,7 @@ export default function EmployeeTasksPage() {
   }
 
   return (
-    <div className="flex w-full max-w-5xl flex-col gap-4 pb-12">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold tracking-tight text-zinc-900">Tasks · {employeeName}</h1>
-
-        {canManage && (
-          <Button
-            className="h-9 border-transparent bg-indigo-600 px-4 font-medium text-white shadow-sm hover:bg-indigo-700"
-            onClick={() => setShowCreate(true)}
-          >
-            <Plus className="mr-2 h-4 w-4 opacity-90" />
-            Add Task
-          </Button>
-        )}
-      </div>
-
+    <div className="flex w-full max-w-5xl flex-col gap-2 pb-12">
       <div className="flex flex-col gap-2">
         {loading && (
           <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
