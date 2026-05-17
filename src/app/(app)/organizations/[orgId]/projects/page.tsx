@@ -704,7 +704,7 @@ export default function ProjectsPage() {
         >
           <div className="mb-2.5">
             <p className="text-[13px] font-semibold text-zinc-900">Rename project</p>
-            <p className="mt-0.5 text-[11px] text-zinc-500">Update the project name inline.</p>
+            <p className="mt-0.5 text-[11px] text-zinc-500">New Project name.</p>
           </div>
 
           <Input
