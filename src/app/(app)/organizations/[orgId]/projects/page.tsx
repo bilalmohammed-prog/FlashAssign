@@ -10,11 +10,12 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { useParams, useRouter } from "next/navigation";
 import { deleteProject } from "@/actions/project/deleteProject";
+import { usePageHeader } from "@/components/layout/PageHeaderContext";
 import { useToast } from "@/components/providers/toast";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Calendar, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { Calendar, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { createPortal } from "react-dom";
 
 type ProjectStatus = "active" | "paused" | "archived";
@@ -123,6 +124,7 @@ export default function ProjectsPage() {
   const { orgId } = useParams<{ orgId: string }>();
   const router = useRouter();
   const { addToast } = useToast();
+  const { setPageHeader } = usePageHeader();
   const role = useOrgRole();
   const canManage = role === "owner" || role === "admin" || role === "manager";
 
@@ -378,47 +380,53 @@ export default function ProjectsPage() {
     }
   }
 
-  return (
-    <div className="flex w-full max-w-6xl flex-col gap-4 pb-12">
-      <div className="mx-auto w-full max-w-5xl rounded-xl border border-zinc-200 bg-white px-4 py-2.5 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative w-full sm:max-w-sm">
-              <input
-                placeholder="Search projects"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-9 w-full rounded-md border border-zinc-200 bg-white px-3 pl-9 text-sm text-zinc-700 outline-none transition-colors placeholder:text-zinc-400 focus:border-transparent focus:ring-2 focus:ring-indigo-500"
-              />
-              <Calendar className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-            </div>
-
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as "all" | ProjectStatus)}
-              className="h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-44"
-            >
-              <option value="all">All statuses</option>
-              <option value="active">Active</option>
-              <option value="paused">Paused</option>
-              <option value="archived">Archived</option>
-            </select>
+  useEffect(() => {
+    setPageHeader(
+      <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:max-w-md">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <Input
+              placeholder="Search projects"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-9 border-zinc-200 bg-white pl-9 text-sm text-zinc-700 placeholder:text-zinc-400 focus-visible:ring-2 focus-visible:ring-indigo-500"
+            />
           </div>
 
-          {canManage && (
-            <Button
-              onClick={() => setShowCreate(true)}
-              className="h-9 shrink-0 rounded-lg border border-indigo-500 bg-indigo-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-600"
-            >
-              <Plus className="mr-2 h-4 w-4 opacity-90" />
-              New Project
-            </Button>
-          )}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as "all" | ProjectStatus)}
+            className="h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-44"
+          >
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="paused">Paused</option>
+            <option value="archived">Archived</option>
+          </select>
         </div>
-      </div>
 
+        {canManage && (
+          <Button
+            onClick={() => setShowCreate(true)}
+            className="h-9 shrink-0 rounded-lg border border-indigo-500 bg-indigo-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-600"
+          >
+            <Plus className="mr-2 h-4 w-4 opacity-90" />
+            New Project
+          </Button>
+        )}
+      </div>
+    );
+
+    return () => {
+      setPageHeader(null);
+    };
+  }, [canManage, searchQuery, setPageHeader, statusFilter]);
+
+  return (
+    <div className="flex w-full flex-col gap-4 pb-12">
       {loading ? (
-        <div className="mx-auto w-full max-w-5xl overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+        <div className="w-full overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
           <div className="border-b border-zinc-200/80 bg-zinc-50/80 px-6 py-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
             Projects
           </div>
@@ -459,7 +467,7 @@ export default function ProjectsPage() {
             </div>
           ) : null}
 
-          <div className="mx-auto w-full max-w-5xl overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+          <div className="w-full overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
             <div
               className={`hidden items-center gap-4 border-b border-zinc-200/80 bg-zinc-50/80 px-6 py-3 text-xs font-semibold uppercase tracking-wider text-zinc-500 md:grid ${desktopProjectsTableGrid}`}
             >
@@ -753,28 +761,34 @@ export default function ProjectsPage() {
       )}
 
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-[420px] space-y-4 rounded-xl border border-zinc-200 bg-white p-6 text-zinc-900 shadow-sm">
-            <h2 className="text-lg font-medium text-zinc-900">Create Project</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
+          <div className="w-[408px] rounded-xl border border-zinc-200 bg-white p-5 text-zinc-900 shadow-md shadow-zinc-900/5">
+            <div className="space-y-1">
+              <h2 className="text-xl font-semibold tracking-tight text-zinc-900">Create Project</h2>
+              <p className="text-sm text-zinc-500">Set up a project, assign members, and add dates if needed.</p>
+            </div>
 
-            <input
-              placeholder="Project name *"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-md border border-zinc-200 bg-white p-2 text-sm text-zinc-900 shadow-sm outline-none transition-colors placeholder:text-zinc-400 focus:border-transparent focus:ring-2 focus:ring-indigo-500"
-            />
+            <div className="mt-5 space-y-5">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-zinc-700">Project name</label>
+                <input
+                  placeholder="Project name *"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 shadow-sm outline-none transition-colors placeholder:text-zinc-400 focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
 
-            {/* Member assignment (optional) */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-700">Assign members (optional)</label>
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-zinc-700">Assign members (optional)</label>
 
-              <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2">
                 {selectedMembers.map((id) => {
                   const member = membersList.find((m) => m.user_id === id);
                   const label = member?.name ?? id;
                   return (
-                    <div key={id} className="inline-flex items-center gap-2 rounded-full bg-zinc-50 px-2 py-1 text-sm text-zinc-700">
-                      <div className="h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 flex">{label.charAt(0)}</div>
+                    <div key={id} className="inline-flex items-center gap-2 rounded-full bg-zinc-50 px-2.5 py-1 text-sm text-zinc-700">
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-semibold text-indigo-700">{label.charAt(0)}</div>
                       <span className="truncate max-w-[120px]">{label}</span>
                       <button
                         type="button"
@@ -789,67 +803,82 @@ export default function ProjectsPage() {
                 })}
               </div>
 
-              <input
-                placeholder="Search members"
-                value={memberFilter}
-                onChange={(e) => setMemberFilter(e.target.value)}
-                className="w-full rounded-md border border-zinc-200 bg-white p-2 text-sm text-zinc-900 shadow-sm outline-none transition-colors placeholder:text-zinc-400 focus:border-transparent focus:ring-2 focus:ring-indigo-500"
-              />
+                <input
+                  placeholder="Search members"
+                  value={memberFilter}
+                  onChange={(e) => setMemberFilter(e.target.value)}
+                  className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 shadow-sm outline-none transition-colors placeholder:text-zinc-400 focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                />
 
-              <div className="max-h-36 overflow-auto rounded-md border border-zinc-100 bg-white p-2">
-                {membersLoading ? (
-                  <div className="text-sm text-zinc-500">Loading members…</div>
-                ) : (
-                  (membersList
-                    .filter((m) => m.name.toLowerCase().includes(memberFilter.toLowerCase()))
-                    .slice(0, 20)
-                    .map((member) => (
-                      <label key={member.user_id} className="flex items-center gap-2 py-1 text-sm text-zinc-700">
-                        <input
-                          type="checkbox"
-                          checked={selectedMembers.includes(member.user_id)}
-                          onChange={(e) => {
-                            if (e.target.checked) setSelectedMembers((prev) => [...prev, member.user_id]);
-                            else setSelectedMembers((prev) => prev.filter((id) => id !== member.user_id));
-                          }}
-                        />
-                        <div className="h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 flex">{member.name.charAt(0)}</div>
-                        <span>{member.name}</span>
-                      </label>
-                    ))) || <div className="text-sm text-zinc-500">No members</div>
-                )}
+                <div className="max-h-40 overflow-auto rounded-md bg-zinc-50/50 px-1">
+                  {membersLoading ? (
+                    <div className="px-2 py-2 text-sm text-zinc-500">Loading members…</div>
+                  ) : (
+                    (membersList
+                      .filter((m) => m.name.toLowerCase().includes(memberFilter.toLowerCase()))
+                      .slice(0, 20)
+                      .map((member) => (
+                        <label
+                          key={member.user_id}
+                          className="flex items-center gap-3 border-b border-zinc-100 px-2 py-2 last:border-b-0 text-sm text-zinc-700"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedMembers.includes(member.user_id)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedMembers((prev) => [...prev, member.user_id]);
+                              else setSelectedMembers((prev) => prev.filter((id) => id !== member.user_id));
+                            }}
+                            className="mt-0 shrink-0"
+                          />
+                          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[11px] font-semibold text-indigo-700">
+                            {member.name.charAt(0)}
+                          </div>
+                          <span className="min-w-0 flex-1 truncate">{member.name}</span>
+                        </label>
+                      ))) || <div className="px-2 py-2 text-sm text-zinc-500">No members</div>
+                  )}
+                </div>
               </div>
-            </div>
 
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full rounded-md border border-zinc-200 bg-white p-2 text-sm text-zinc-900 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500"
-            />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-zinc-500">Start date (optional)</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
 
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full rounded-md border border-zinc-200 bg-white p-2 text-sm text-zinc-900 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500"
-            />
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-zinc-500">Due date (optional)</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
 
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowCreate(false)}
-                className="rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 transition-colors hover:bg-zinc-50"
-              >
-                Cancel
-              </button>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  onClick={() => setShowCreate(false)}
+                  className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600 transition-colors hover:bg-zinc-50"
+                >
+                  Cancel
+                </button>
 
-              <button
-                disabled={!name.trim() || creating}
-                onClick={handleCreate}
-                className="rounded-md border border-transparent bg-indigo-600 px-3 py-1.5 text-sm text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-40"
-              >
-                {creating ? "Creating..." : "Create"}
-              </button>
+                <button
+                  disabled={!name.trim() || creating}
+                  onClick={handleCreate}
+                  className="rounded-md border border-transparent bg-indigo-600 px-3 py-2 text-sm text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-40"
+                >
+                  {creating ? "Creating..." : "Create"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

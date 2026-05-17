@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { MessageSquare, UserPlus } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { usePageHeader } from "@/components/layout/PageHeaderContext";
 import { Button } from "@/components/ui/button";
 import ComposeMessagePopup from "@/components/ComposeMessagePopup";
 
@@ -16,6 +17,7 @@ export default function TopBar({ sidebarCollapsed, onToggleSidebar }: TopBarProp
   void sidebarCollapsed;
   void onToggleSidebar;
   const pathname = usePathname();
+  const { pageHeader } = usePageHeader();
 
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [composeMode, setComposeMode] = useState<"message" | "invite" | null>(null);
@@ -48,8 +50,8 @@ export default function TopBar({ sidebarCollapsed, onToggleSidebar }: TopBarProp
     return null;
   }
 
-  return (
-    <header className="sticky top-0 z-10 flex h-16 w-full shrink-0 items-center justify-between border-b border-zinc-200/80 bg-white px-8 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)]">
+  const defaultHeaderContent = (
+    <>
       <div className="w-10" />
 
       <div className="flex flex-1 justify-center">
@@ -85,6 +87,14 @@ export default function TopBar({ sidebarCollapsed, onToggleSidebar }: TopBarProp
       </div>
 
       <div className="w-10" />
+    </>
+  );
+
+  return (
+    <header className="sticky top-0 z-10 min-h-16 w-full shrink-0 border-b border-zinc-200/80 bg-white shadow-[0_1px_3px_0_rgba(0,0,0,0.02)]">
+      <div className="mx-auto flex min-h-16 w-full max-w-5xl items-center px-6 py-3 lg:px-12">
+        {pageHeader ? <div className="flex w-full items-center">{pageHeader}</div> : defaultHeaderContent}
+      </div>
 
       {composeMode && (
         <ComposeMessagePopup

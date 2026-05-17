@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { DashboardProvider, useDashboard } from "@/components/providers/dashboard/DashboardContext";
 import LeftSideBar from "@/components/layout/LeftSideBar";
+import { PageHeaderProvider } from "@/components/layout/PageHeaderContext";
 import TopBar from "@/components/layout/TopBar";
 import { supabase } from "@/lib/supabase/client";
 import { ToastProvider, ToastContainer } from "@/components/providers/toast";
@@ -44,15 +45,17 @@ function DashboardShell({ children }: DashboardShellProps) {
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((current) => !current)}
       />
-      <div className="relative flex min-w-0 flex-1 flex-col">
-        <TopBar
-          sidebarCollapsed={sidebarCollapsed}
-          onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
-        />
-        <main className="relative mx-auto flex-1 w-full max-w-5xl overflow-y-auto px-6 py-12 lg:px-12">
-          {children}
-        </main>
-      </div>
+      <PageHeaderProvider>
+        <div className="relative flex min-w-0 flex-1 flex-col">
+          <TopBar
+            sidebarCollapsed={sidebarCollapsed}
+            onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
+          />
+          <main className="relative mx-auto flex-1 w-full max-w-5xl overflow-y-auto px-6 py-12 lg:px-12">
+            {children}
+          </main>
+        </div>
+      </PageHeaderProvider>
       <ToastContainer />
     </div>
   );
