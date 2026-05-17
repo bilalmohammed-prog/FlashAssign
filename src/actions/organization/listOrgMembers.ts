@@ -7,7 +7,7 @@ import { uuidSchema } from "@/lib/validation/common";
 
 export async function listOrgMembers(
   orgId: string
-): Promise<ActionResult<Array<{ user_id: string; name: string }>>> {
+): Promise<ActionResult<Array<{ user_id: string; name: string; email: string | null }>>> {
   try {
     const validatedOrgId = uuidSchema.parse(orgId);
 
@@ -15,7 +15,7 @@ export async function listOrgMembers(
     const members = await listOrganizationMembers(ctx.supabase, {
       organizationId: ctx.organizationId,
     });
-    const data = members.map((m) => ({ user_id: m.userId, name: m.fullName }));
+    const data = members.map((m) => ({ user_id: m.userId, name: m.fullName, email: m.email }));
     return { data, error: null };
   } catch (err) {
     return { data: null, error: { message: safeErrorMessage(err) } };

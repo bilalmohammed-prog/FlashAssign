@@ -127,7 +127,7 @@ export async function listOrganizationsForUser(
 export async function listOrganizationMembers(
   supabase: SupabaseClient<Database>,
   params: { organizationId: string }
-): Promise<Array<{ userId: string; fullName: string }>> {
+): Promise<Array<{ userId: string; fullName: string; email: string | null }>> {
   const { data: members, error: memberError } = await supabase
     .from("org_members")
     .select("user_id")
@@ -144,7 +144,7 @@ export async function listOrganizationMembers(
 
   const { data: profiles, error: profileError } = await supabase
     .from("profiles")
-    .select("id,full_name")
+    .select("id,full_name,username")
     .in("id", userIds);
 
   if (profileError) {
@@ -154,6 +154,7 @@ export async function listOrganizationMembers(
   return (profiles ?? []).map((profile) => ({
     userId: profile.id,
     fullName: profile.full_name ?? "Unknown",
+    email: profile.username ?? null,
   }));
 }
 

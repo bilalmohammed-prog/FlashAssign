@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { Search } from "lucide-react";
 import { listOrgMembers } from "@/actions/organization/listOrgMembers";
 import { apiFetch } from "@/lib/api/client";
 import { ApiException } from "@/lib/api/types";
@@ -18,6 +17,7 @@ type Props = {
 type OrgMember = {
   user_id: string;
   name: string;
+  email: string | null;
 };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -28,8 +28,7 @@ export default function ComposeMessagePopup({ onClose, fixedType }: Props) {
 
   const [members, setMembers] = useState<OrgMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
-  const [recipientQuery, setRecipientQuery] = useState("");
-  const [selectedRecipient, setSelectedRecipient] = useState<OrgMember | null>(null);
+  const [recipientEmail, setRecipientEmail] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [content, setContent] = useState("");
   const [sending, setSending] = useState(false);
@@ -66,11 +65,12 @@ export default function ComposeMessagePopup({ onClose, fixedType }: Props) {
     };
   }, [isInvite, orgId]);
 
-  const filteredMembers = useMemo(() => {
-    const query = recipientQuery.trim().toLowerCase();
-    if (!query) return members.slice(0, 8);
-    return members.filter((member) => member.name.toLowerCase().includes(query)).slice(0, 8);
-  }, [members, recipientQuery]);
+  const normalizedRecipientEmail = recipientEmail.trim().toLowerCase();
+  const isRecipientEmailValid = normalizedRecipientEmail.length > 0 && EMAIL_PATTERN.test(normalizedRecipientEmail);
+  const matchedRecipient = useMemo(() => {
+    if (!normalizedRecipientEmail) return null;
+    return members.find((member) => (member.email ?? "").toLowerCase() === normalizedRecipientEmail) ?? null;
+  }, [members, normalizedRecipientEmail]);
 
   async function handleSend() {
     if (!content.trim()) return;
@@ -80,9 +80,15 @@ export default function ComposeMessagePopup({ onClose, fixedType }: Props) {
         setError("Enter a valid invite email.");
         return;
       }
-    } else if (!selectedRecipient) {
-      setError("Select a teammate to message.");
-      return;
+    } else {
+      if (!isRecipientEmailValid) {
+        setError("Enter a valid recipient email.");
+        return;
+      }
+      if (!matchedRecipient) {
+        setError("No organization member found for that email.");
+        return;
+      }
     }
 
     if (!orgId) {
@@ -103,7 +109,7 @@ export default function ComposeMessagePopup({ onClose, fixedType }: Props) {
           }
         : {
             organizationId: orgId,
-            recipientId: selectedRecipient?.user_id,
+            recipientId: matchedRecipient?.user_id,
             content: content.trim(),
           };
 
@@ -134,7 +140,11 @@ export default function ComposeMessagePopup({ onClose, fixedType }: Props) {
         onClick={() => {
           void handleSend();
         }}
-        disabled={(isInvite ? !inviteEmail.trim() : !selectedRecipient) || !content.trim() || sending}
+        disabled={
+          (isInvite ? !inviteEmail.trim() : !isRecipientEmailValid || !matchedRecipient) ||
+          !content.trim() ||
+          sending
+        }
         className="h-8 bg-indigo-600 px-3 text-sm text-white hover:bg-indigo-700"
       >
         {sending ? "Sending..." : isInvite ? "Send Invite" : "Send Message"}
@@ -145,7 +155,7 @@ export default function ComposeMessagePopup({ onClose, fixedType }: Props) {
   return (
     <AppModal
       title={isInvite ? "Send Invite" : "Send Message"}
-      description={isInvite ? "Invite a teammate by email." : "Start a direct conversation with a teammate."}
+      description={isInvite ? "Invite a teammate by email." : "Send a direct message by email."}
       onClose={onClose}
       widthClassName="w-[420px]"
       footer={footer}
@@ -163,44 +173,31 @@ export default function ComposeMessagePopup({ onClose, fixedType }: Props) {
         </div>
       ) : (
         <div className="space-y-2">
-          <label className="text-xs font-medium text-zinc-600">Recipient</label>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-            <Input
-              placeholder="Search teammates"
-              value={selectedRecipient ? selectedRecipient.name : recipientQuery}
-              onChange={(e) => {
-                setSelectedRecipient(null);
-                setRecipientQuery(e.target.value);
-              }}
-              className="h-9 border-zinc-200 pl-9 text-sm placeholder:text-zinc-400 hover:border-zinc-300 focus-visible:ring-2 focus-visible:ring-indigo-500"
-            />
-          </div>
-          <div className="max-h-44 overflow-auto rounded-md border border-zinc-100 bg-zinc-50/40">
-            {membersLoading ? (
-              <div className="px-3 py-3 text-sm text-zinc-500">Loading teammates...</div>
-            ) : filteredMembers.length === 0 ? (
-              <div className="px-3 py-3 text-sm text-zinc-500">No teammates found.</div>
-            ) : (
-              filteredMembers.map((member) => {
-                const active = selectedRecipient?.user_id === member.user_id;
-                return (
-                  <button
-                    key={member.user_id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedRecipient(member);
-                      setRecipientQuery(member.name);
-                    }}
-                    className={`flex w-full items-center justify-between border-b border-zinc-100 px-3 py-2.5 text-left text-sm last:border-b-0 ${active ? "bg-indigo-50 text-indigo-700" : "text-zinc-700 hover:bg-zinc-100/80"}`}
-                  >
-                    <span className="truncate font-medium">{member.name}</span>
-                    {active ? <span className="text-xs font-medium">Selected</span> : null}
-                  </button>
-                );
-              })
-            )}
-          </div>
+          <label className="text-xs font-medium text-zinc-600">Recipient Email</label>
+          <Input
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            placeholder="Enter employee email"
+            value={recipientEmail}
+            onChange={(e) => {
+              setError(null);
+              setRecipientEmail(e.target.value);
+            }}
+            className="h-9 border-zinc-200 text-sm placeholder:text-zinc-400 hover:border-zinc-300 focus-visible:ring-2 focus-visible:ring-indigo-500"
+            aria-invalid={Boolean(recipientEmail) && !isRecipientEmailValid}
+          />
+          {recipientEmail.trim().length > 0 ? (
+            <p className="text-xs text-zinc-500">
+              {membersLoading
+                ? "Checking team members..."
+                : !isRecipientEmailValid
+                  ? "Enter a valid email address."
+                  : matchedRecipient
+                    ? "Team member found."
+                    : "No organization member found."}
+            </p>
+          ) : null}
         </div>
       )}
 
