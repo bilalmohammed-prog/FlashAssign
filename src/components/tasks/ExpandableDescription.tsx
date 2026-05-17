@@ -28,23 +28,28 @@ export function ExpandableDescription({
   const label = hasValue ? "Description" : "Add description";
 
   return (
-    <div className={cn("space-y-2", className)}>
+    <div className={cn("relative space-y-2", className)}>
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
-        className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 transition-colors hover:text-zinc-800"
+        className="group flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-800"
         aria-expanded={expanded}
         aria-controls={contentId}
       >
-        {label}
-        <ChevronDown className={cn("h-3 w-3 transition-transform", expanded ? "rotate-180" : "rotate-0")} />
+        <span className="flex items-center gap-1">
+          {label}
+          <ChevronDown className={cn("h-3 w-3 transition-transform", expanded ? "rotate-180" : "rotate-0")} />
+        </span>
+        <span className="text-[11px] text-zinc-400 transition-colors group-hover:text-zinc-600">
+          {expanded ? "Hide" : "Show"}
+        </span>
       </button>
 
       <div
         id={contentId}
         className={cn(
           "transition-[max-height,opacity] duration-200",
-          expanded ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
+          expanded ? "max-h-48 opacity-100 pointer-events-auto" : "max-h-0 opacity-0 pointer-events-none"
         )}
       >
         <div className="rounded-md border border-zinc-200 bg-white p-0.5 transition-[box-shadow,border-color] focus-within:border-transparent focus-within:ring-2 focus-within:ring-indigo-500">
