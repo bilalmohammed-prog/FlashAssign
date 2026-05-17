@@ -6,6 +6,7 @@ import { Calendar, ClipboardList, ArrowUpDown } from "lucide-react";
 import { listMyTasks } from "@/actions/task/listMyTasks";
 import { updateTask } from "@/actions/task/update";
 import { useOrgRole } from "@/hooks/useOrgRole";
+import { usePageHeader } from "@/components/layout/PageHeaderContext";
 import type { Enums } from "@/lib/types/database";
 import type { MyTaskListItem } from "@/services/task/myTasks.service";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,7 @@ export default function MyTasksPage() {
   const { orgId } = useParams<{ orgId: string }>();
   const role = useOrgRole();
   const canUpdateStatus = role !== null;
+  const { setPageHeader } = usePageHeader();
 
   const [tasks, setTasks] = useState<MyTaskListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -161,14 +163,74 @@ export default function MyTasksPage() {
     }
   }
 
-  return (
-    <div className="flex w-full max-w-6xl flex-col space-y-8 pb-16">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-900">My Tasks</h1>
-        <p className="text-sm text-zinc-500">
-          All tasks assigned to you across projects in this organization
-        </p>
+  useEffect(() => {
+    setPageHeader(
+      <div className="flex w-full flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="truncate text-lg font-semibold tracking-tight text-zinc-900">My Tasks</h1>
+          <p className="text-xs text-zinc-500">All tasks assigned to you across projects</p>
+        </div>
+
+        <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+          <div className="relative w-full max-w-[220px]">
+            <input
+              value={projectFilter}
+              onChange={(e) => setProjectFilter(e.target.value)}
+              placeholder="Search projects"
+              className="h-8 w-full rounded-md border border-zinc-200 bg-white px-3 text-xs text-zinc-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+              list="project-options"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            className="h-8 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="all">All statuses</option>
+            <option value="todo">To Do</option>
+            <option value="in_progress">In Progress</option>
+            <option value="blocked">Blocked</option>
+            <option value="done">Completed</option>
+          </select>
+          <select
+            value={projectFilter}
+            onChange={(e) => setProjectFilter(e.target.value)}
+            className="h-8 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="all">All Projects</option>
+            {projectOptions.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setDueSort((prev) => (prev === "asc" ? "desc" : "asc"))}
+            className="h-8 border-zinc-200 px-2.5 text-xs text-zinc-700"
+          >
+            <ArrowUpDown className="mr-2 h-4 w-4" />
+            {dueSort === "asc" ? "Earliest" : "Latest"}
+          </Button>
+        </div>
       </div>
+    );
+
+    return () => {
+      setPageHeader(null);
+    };
+  }, [dueSort, projectFilter, projectOptions, setPageHeader, statusFilter]);
+
+  return (
+    <div className="flex w-full max-w-6xl flex-col gap-6 pb-12">
+      <datalist id="project-options">
+        {projectOptions.map((project) => (
+          <option key={project.id} value={project.id}>
+            {project.name}
+          </option>
+        ))}
+      </datalist>
 
       <div className="flex flex-wrap gap-2 rounded-xl border border-zinc-200/80 bg-white p-4 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)]">
         <div className="rounded-lg border border-zinc-200/70 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
@@ -186,49 +248,6 @@ export default function MyTasksPage() {
         <div className="rounded-lg border border-zinc-200/70 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
           <span className="font-semibold text-zinc-900">Completed:</span> {summary.done}
         </div>
-      </div>
-
-      <div className="flex flex-col gap-3 rounded-xl border border-zinc-200/80 bg-white p-4 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)] md:flex-row md:items-center">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-zinc-500">Status</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-            className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="all">All</option>
-            <option value="todo">To Do</option>
-            <option value="in_progress">In Progress</option>
-            <option value="blocked">Blocked</option>
-            <option value="done">Completed</option>
-          </select>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-zinc-500">Project</span>
-          <select
-            value={projectFilter}
-            onChange={(e) => setProjectFilter(e.target.value)}
-            className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="all">All Projects</option>
-            {projectOptions.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setDueSort((prev) => (prev === "asc" ? "desc" : "asc"))}
-          className="h-9 border-zinc-200 text-zinc-700"
-        >
-          <ArrowUpDown className="mr-2 h-4 w-4" />
-          Due Date: {dueSort === "asc" ? "Earliest" : "Latest"}
-        </Button>
       </div>
 
       {error && (
@@ -274,7 +293,9 @@ export default function MyTasksPage() {
                 key={task.id}
                 className="grid grid-cols-1 gap-3 px-4 py-3 transition-colors hover:bg-zinc-50/60 md:grid-cols-[220px_minmax(260px,1fr)_170px_160px] md:items-center"
               >
-                <div className="text-sm font-medium text-zinc-700">{task.project_name}</div>
+                <div className="text-sm font-medium text-zinc-700 truncate" title={task.project_name}>
+                  {task.project_name}
+                </div>
 
                 <div className="text-sm font-medium text-zinc-900">{task.title}</div>
 
