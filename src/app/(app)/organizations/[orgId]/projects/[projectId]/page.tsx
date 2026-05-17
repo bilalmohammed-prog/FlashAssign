@@ -14,6 +14,7 @@ import { listProjectMembers } from "@/actions/project/listProjectMembers";
 import { assignProjectMember } from "@/actions/project/assignProjectMember";
 import { removeProjectMember } from "@/actions/project/removeProjectMember";
 import { useOrgRole } from "@/hooks/useOrgRole";
+import { usePageHeader } from "@/components/layout/PageHeaderContext";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,6 +60,7 @@ export default function ProjectWorkspacePage() {
   const role = useOrgRole();
   const canManage = role === "owner" || role === "admin" || role === "manager";
   const { addToast } = useToast();
+  const { setPageHeader } = usePageHeader();
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
 
   const [projectMembers, setProjectMembers] = useState<HumanResource[]>([]);
@@ -258,15 +260,17 @@ export default function ProjectWorkspacePage() {
     }
   }
 
-  return (
-    <div className="flex w-full max-w-5xl flex-col gap-3 pb-10">
-      <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">{projectName}</h1>
+  useEffect(() => {
+    setPageHeader(
+      <div className="flex w-full flex-wrap items-center justify-between gap-2 md:flex-nowrap">
+        <div className="min-w-0 flex-1 md:max-w-[min(52%,640px)]">
+          <h1 className="truncate text-xl font-semibold tracking-tight text-zinc-900 md:text-[22px]" title={projectName}>
+            {projectName}
+          </h1>
         </div>
 
         {canManage && (
-          <div className="flex flex-wrap items-center gap-2 self-start sm:justify-end">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 md:flex-nowrap">
             <Button
               variant="outline"
               className="h-8 border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50"
@@ -301,7 +305,15 @@ export default function ProjectWorkspacePage() {
           </div>
         )}
       </div>
+    );
 
+    return () => {
+      setPageHeader(null);
+    };
+  }, [canManage, projectName, setPageHeader]);
+
+  return (
+    <div className="flex w-full max-w-5xl flex-col pb-10">
       <section>
         <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
           <div className="hidden grid-cols-[48px_minmax(0,1.8fr)_220px_152px_132px] items-center gap-4 border-b border-zinc-200/80 bg-zinc-50/80 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-zinc-500 md:grid">
