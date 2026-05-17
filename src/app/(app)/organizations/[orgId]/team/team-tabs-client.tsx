@@ -309,9 +309,9 @@ export default function TeamTabsClient({
                 <table className="min-w-full border-collapse">
                   <thead>
                     <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                      <th className="px-4 py-3 font-medium">Member</th>
-                      <th className="px-4 py-3 font-medium">Role</th>
-                      <th className="px-4 py-3 font-medium">Actions</th>
+                      <th className="px-4 py-3 pl-[100px] font-medium">Member</th>
+                      <th className="px-4 py-3 pl-[22px] font-medium">Role</th>
+                      <th className="px-4 py-3 pl-[100px] font-medium text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -325,7 +325,7 @@ export default function TeamTabsClient({
 
                     {pagedMembers.map((member) => (
                       <tr key={member.user_id} className="border-b border-border last:border-0">
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 pl-[8px]">
                           <Link
                             href={`/organizations/${organizationId}/employees/${member.user_id}`}
                             className="block rounded-md transition-colors hover:text-zinc-700"
@@ -334,14 +334,14 @@ export default function TeamTabsClient({
                             <p className="text-sm text-muted-foreground">{member.email ?? member.user_id}</p>
                           </Link>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 pl-[8px]">
                           <Badge variant="outline" className={`w-fit ${roleBadgeClass(getEffectiveRole(member))}`}>
                             {getEffectiveRole(member)}
                           </Badge>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 pl-[10px]">
                           {canManageMembers ? (
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex w-full flex-wrap items-center justify-end gap-2">
                               <Select
                                 value={getEffectiveRole(member)}
                                 onValueChange={(value) => onRoleSelect(member, value as RoleType)}
