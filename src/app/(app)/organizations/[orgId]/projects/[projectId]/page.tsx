@@ -79,7 +79,6 @@ export default function ProjectWorkspacePage() {
   const [projectName, setProjectName] = useState("Project");
   const [showManageMembers, setShowManageMembers] = useState(false);
   const [showAddMembers, setShowAddMembers] = useState(false);
-  const [showCreateDescription, setShowCreateDescription] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
   const [selectedMembersToAdd, setSelectedMembersToAdd] = useState<string[]>([]);
   const [selectedMembersToRemove, setSelectedMembersToRemove] = useState<string[]>([]);
@@ -185,7 +184,6 @@ export default function ProjectWorkspacePage() {
       setTasks((prev) => [newTask, ...prev]);
       setTitle("");
       setCreateDescription("");
-      setShowCreateDescription(false);
       setDueDate("");
       setSelectedEmployee("");
       setShowCreate(false);
@@ -484,7 +482,6 @@ export default function ProjectWorkspacePage() {
           description="Create a task and optionally assign it right away."
           onClose={() => {
             setShowCreate(false);
-            setShowCreateDescription(false);
           }}
           widthClassName="w-[380px]"
           footer={
@@ -493,7 +490,6 @@ export default function ProjectWorkspacePage() {
                 variant="outline"
                 onClick={() => {
                   setShowCreate(false);
-                  setShowCreateDescription(false);
                 }}
                 disabled={creating}
                 className="h-8 px-3 text-sm text-zinc-600"
@@ -551,23 +547,15 @@ export default function ProjectWorkspacePage() {
             </select>
           </div>
 
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setShowCreateDescription((prev) => !prev)}
-              className="inline-flex items-center text-xs font-medium text-zinc-500 transition-colors hover:text-zinc-800"
-            >
-              {showCreateDescription ? "Description" : "+ Add Description"}
-            </button>
-            {showCreateDescription && (
-              <textarea
-                value={createDescription}
-                onChange={(e) => setCreateDescription(e.target.value)}
-                rows={2}
-                placeholder="Add description"
-                className="w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700 placeholder:text-zinc-400 outline-none transition-[border-color,box-shadow] focus:border-transparent focus:ring-2 focus:ring-indigo-500"
-              />
-            )}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-600">Description</label>
+            <textarea
+              value={createDescription}
+              onChange={(e) => setCreateDescription(e.target.value)}
+              rows={2}
+              placeholder="Add description"
+              className="w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700 placeholder:text-zinc-400 outline-none transition-[border-color,box-shadow] focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+            />
           </div>
         </AppModal>
       )}
