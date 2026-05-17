@@ -117,7 +117,7 @@ function getAnchoredPopoverPosition(triggerRect: DOMRect, panelWidth: number, pa
 }
 
 const desktopProjectsTableGrid =
-  "md:grid-cols-[minmax(0,2.1fr)_minmax(0,1.35fr)_72px_112px_130px_104px_56px]";
+  "md:grid-cols-[minmax(0,2fr)_120px_120px_140px_120px_48px]";
 
 export default function ProjectsPage() {
   const { orgId } = useParams<{ orgId: string }>();
@@ -135,7 +135,7 @@ export default function ProjectsPage() {
   const [membersLoading, setMembersLoading] = useState(false);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [memberFilter, setMemberFilter] = useState("");
-  const [projectMeta, setProjectMeta] = useState<Record<string, { owner?: string; memberCount?: number; completed?: number; total?: number }>>({});
+  const [projectMeta, setProjectMeta] = useState<Record<string, { memberCount?: number; completed?: number; total?: number }>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | ProjectStatus>("all");
   const [startDate, setStartDate] = useState("");
@@ -206,14 +206,13 @@ export default function ProjectsPage() {
     let cancelled = false;
 
     async function fetchMeta() {
-      const map: Record<string, { owner?: string; memberCount?: number; completed?: number; total?: number }> = {};
+      const map: Record<string, { memberCount?: number; completed?: number; total?: number }> = {};
 
       await Promise.all(
         projects.map(async (p) => {
           try {
             const members = await listProjectMembers(p.id);
             const memberCount = members.length;
-            const owner = members[0]?.name ?? undefined;
 
             const { data: tasks } = await supabase
               .from("tasks")
@@ -229,7 +228,7 @@ export default function ProjectsPage() {
               completed = arr.filter((t) => t.status === "done").length;
             }
 
-            map[p.id] = { owner, memberCount, completed, total };
+            map[p.id] = { memberCount, completed, total };
           } catch {
             // ignore per-project failures
           }
@@ -465,12 +464,11 @@ export default function ProjectsPage() {
               className={`hidden items-center gap-4 border-b border-zinc-200/80 bg-zinc-50/80 px-6 py-3 text-xs font-semibold uppercase tracking-wider text-zinc-500 md:grid ${desktopProjectsTableGrid}`}
             >
               <div className="min-w-0">Project</div>
-              <div className="min-w-0">Owner</div>
               <div className="whitespace-nowrap">Members</div>
               <div className="whitespace-nowrap">Status</div>
               <div className="whitespace-nowrap">Progress</div>
               <div className="whitespace-nowrap">Due Date</div>
-              <div className="text-right">Actions</div>
+              <div aria-hidden="true" />
             </div>
 
             <div className="divide-y divide-zinc-100">
@@ -489,7 +487,7 @@ export default function ProjectsPage() {
                       className={`group relative flex flex-col items-start gap-3 px-4 py-3 transition-colors hover:bg-zinc-50/50 md:grid md:items-center md:gap-4 md:px-6 md:py-3 ${desktopProjectsTableGrid}`}
                     >
                       <div className="flex w-full min-w-0 flex-col">
-                        <span className="min-w-0 break-words text-[15px] font-medium leading-relaxed text-zinc-900">{p.name}</span>
+                        <span className="truncate text-[15px] font-medium text-zinc-900" title={p.name}>{p.name}</span>
                         <div className="mt-1 flex items-center gap-2 md:hidden">
                           <span className={`inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium ${getStatusBadgeClass(p.status)}`}>{p.status}</span>
                           <span className="h-1 w-1 rounded-full bg-zinc-300" />
@@ -536,12 +534,10 @@ export default function ProjectsPage() {
                         </div>
                       </div>
 
-                      <div className="hidden min-w-0 md:flex md:items-center">
-                        <span className="min-w-0 break-words text-sm leading-relaxed text-zinc-700">{meta.owner ?? "—"}</span>
-                      </div>
-
                       <div className="hidden md:flex md:items-center">
-                        <span className="whitespace-nowrap text-sm tabular-nums text-zinc-600">{meta.memberCount ?? 0}</span>
+                        <span className="whitespace-nowrap text-sm text-zinc-500">
+                          {`${meta.memberCount ?? 0}`}
+                        </span>
                       </div>
 
                       <div className="hidden md:flex md:items-center md:gap-2">
@@ -566,7 +562,7 @@ export default function ProjectsPage() {
                       </div>
 
                       <div className="hidden min-w-0 md:flex md:flex-col md:items-start md:gap-2">
-                        <div className="w-full max-w-28">
+                        <div className="w-24">
                           <div className="h-1.5 w-full rounded-full bg-zinc-100">
                             <div style={{ width: `${progressPct}%` }} className="h-2 rounded-full bg-emerald-500" />
                           </div>
@@ -575,7 +571,6 @@ export default function ProjectsPage() {
                       </div>
 
                       <div className="hidden min-w-0 items-center text-sm text-zinc-500 md:flex">
-                        <Calendar className="mr-1.5 h-3.5 w-3.5 opacity-70" />
                         <div className="relative">
                           <button
                             onClick={(e) => {
