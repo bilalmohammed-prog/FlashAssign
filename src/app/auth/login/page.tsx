@@ -1,18 +1,16 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { loginAction, type LoginState } from "@/actions/auth/login";
-const initialState: LoginState = { error: null };
+import { supabase } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const searchParams = useSearchParams();
   const redirectParam = searchParams.get("redirect") ?? "";
-  const [state, formAction, isPending] = useActionState(loginAction, initialState);
   const [stats, setStats] = useState({ organizations: 8, activeTasks: 148 });
+  const [oauthError, setOauthError] = useState<string | null>(null);
+  const [oauthPending, setOauthPending] = useState(false);
 
   useEffect(() => {
     fetch("/api/public/stats")
@@ -20,6 +18,34 @@ export default function LoginPage() {
       .then((data) => setStats(data))
       .catch(() => {});
   }, []);
+
+  const safeRedirect = (() => {
+    if (!redirectParam || !redirectParam.startsWith("/") || redirectParam.startsWith("//")) {
+      return "/";
+    }
+    return redirectParam;
+  })();
+
+  async function handleGoogleSignIn() {
+    setOauthPending(true);
+    setOauthError(null);
+
+    const redirectTo = `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(
+      safeRedirect
+    )}`;
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+      },
+    });
+
+    if (error) {
+      setOauthError(error.message);
+      setOauthPending(false);
+    }
+  }
   return (
     <main className="min-h-screen w-full bg-white text-slate-900">
       <section className="mx-auto flex min-h-screen w-full max-w-6xl flex-col lg:flex-row">
@@ -69,70 +95,24 @@ export default function LoginPage() {
               Enter your credentials to continue.
             </p>
 
-            <form action={formAction} className="mt-8 space-y-6">
-              <input type="hidden" name="redirect" value={redirectParam} />
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700" htmlFor="email">
-                  Email
-                </label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="name@company.com"
-                  autoComplete="email"
-                  required
-                  className="h-11 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-slate-700" htmlFor="password">
-                    Password
-                  </label>
-                  <Link href="#" className="text-xs text-indigo-600 hover:underline">
-                    Forgot password?
-                  </Link>
-                </div>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                  required
-                  className="h-11 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                />
-              </div>
-
-              {state.error && (
-                <p className="text-sm font-medium text-red-600">{state.error}</p>
+            <div className="mt-8 space-y-4">
+              {oauthError && (
+                <p className="text-sm font-medium text-red-600">{oauthError}</p>
               )}
-
-              <Button
-                type="submit"
-                disabled={isPending}
-                className="h-11 w-full rounded-md bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700"
-              >
-                {isPending ? "Signing in…" : "Sign in"}
-              </Button>
-
               <Button
                 type="button"
-                variant="outline"
-                className="h-11 w-full rounded-md border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  void handleGoogleSignIn();
+                }}
+                disabled={oauthPending}
+                className="h-11 w-full rounded-md bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700"
               >
-                Request Demo
+                {oauthPending ? "Connecting..." : "Continue with Google"}
               </Button>
-            </form>
-
-            <p className="mt-8 text-center text-sm text-slate-600">
-              New to the platform?{" "}
-              <Link href="/auth/signup" className="font-medium text-indigo-600">
-                Create an account
-              </Link>
-            </p>
+              <p className="text-center text-xs text-slate-500">
+                Google OAuth only. Password login is disabled.
+              </p>
+            </div>
           </div>
         </div>
       </section>

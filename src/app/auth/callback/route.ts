@@ -6,6 +6,14 @@ import type { Database } from "@/lib/types/database";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
+  const redirectTo = searchParams.get("redirect") ?? "/";
+
+  const safeRedirect = (() => {
+    if (!redirectTo.startsWith("/") || redirectTo.startsWith("//")) {
+      return "/";
+    }
+    return redirectTo;
+  })();
 
   if (!code) {
     console.error("Auth callback missing code", { url: request.url });
@@ -70,5 +78,5 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/auth/auth-code-error`);
   }
 
-  return NextResponse.redirect(`${origin}/`);
+  return NextResponse.redirect(`${origin}${safeRedirect}`);
 }
