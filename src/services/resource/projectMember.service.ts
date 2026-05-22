@@ -9,7 +9,6 @@ export type ProjectMemberWithProfile = {
   joined_at: string | null;
   left_at: string | null;
   full_name: string | null;
-  avatar_url: string | null;
 };
 
 async function assertActiveProjectInOrganization(
@@ -110,7 +109,7 @@ export async function listProjectMembers(
 
   const { data: profiles, error: profileError } = await supabase
     .from("profiles")
-    .select("id,full_name,avatar_url")
+    .select("id,full_name")
     .in("id", userIds);
 
   if (profileError) {
@@ -128,7 +127,6 @@ export async function listProjectMembers(
       joined_at: member.joined_at ?? null,
       left_at: member.left_at ?? null,
       full_name: profile?.full_name ?? null,
-      avatar_url: profile?.avatar_url ?? null,
     };
   });
 }

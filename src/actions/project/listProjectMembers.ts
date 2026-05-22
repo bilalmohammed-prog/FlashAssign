@@ -10,7 +10,6 @@ type ProjectMemberWithProfile = Pick<
   "id" | "user_id" | "role" | "joined_at" | "left_at"
 > & {
   full_name: string | null;
-  avatar_url: string | null;
 };
 
 export async function listProjectMembers(

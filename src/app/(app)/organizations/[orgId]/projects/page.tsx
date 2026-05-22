@@ -199,7 +199,7 @@ export default function ProjectsPage() {
         }
       }
     },
-    [orgId, projects.length, addToast]
+    [orgId, addToast]
   );
 
   useEffect(() => {
