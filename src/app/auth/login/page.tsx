@@ -1,97 +1,80 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { loginAction, type LoginState } from "@/actions/auth/login";
-import { useState, useEffect } from "react";
 const initialState: LoginState = { error: null };
 
 export default function LoginPage() {
   const searchParams = useSearchParams();
   const redirectParam = searchParams.get("redirect") ?? "";
   const [state, formAction, isPending] = useActionState(loginAction, initialState);
-// Add to the top of the component (alongside existing useState/useActionState)
-const [stats, setStats] = useState({ organizations: 8, activeTasks: 148 });
+  const [stats, setStats] = useState({ organizations: 8, activeTasks: 148 });
 
-useEffect(() => {
-  fetch("/api/public/stats")
-    .then((r) => r.json())
-    .then((data) => setStats(data))
-    .catch(() => {}); // silently fallback to defaults
-}, []);
+  useEffect(() => {
+    fetch("/api/public/stats")
+      .then((response) => response.json())
+      .then((data) => setStats(data))
+      .catch(() => {});
+  }, []);
   return (
-    <main className="min-h-screen w-full bg-background text-foreground">
-      <section className="mx-auto grid min-h-screen w-full max-w-7xl grid-cols-1 gap-6 p-6 md:p-8 lg:grid-cols-2 lg:gap-0 lg:p-10">
-        <div className="flex flex-col justify-between rounded-xl border border-border bg-card p-8 md:p-10 lg:rounded-r-none">
-          <div className="space-y-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
-                RO
+    <main className="min-h-screen w-full bg-white text-slate-900">
+      <section className="mx-auto flex min-h-screen w-full max-w-6xl flex-col lg:flex-row">
+        <div className="w-full bg-slate-50 p-8 lg:w-[45%] lg:p-12">
+          <div className="flex h-full flex-col justify-between gap-16">
+            <div>
+              <div className="inline-flex items-center gap-3 pb-16">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600">
+                  <span className="text-sm font-semibold text-white">RO</span>
+                </div>
+                <div>
+                  <h1 className="text-lg font-semibold">ResourceOS</h1>
+                  <p className="text-sm text-slate-600">Workspace Intelligence</p>
+                </div>
               </div>
-              <div>
-                <p className="font-heading text-lg font-bold tracking-tight">ResourceOS</p>
-                <p className="font-body text-xs font-normal leading-relaxed text-muted-foreground">
-                  Workspace Intelligence
+
+              <div className="max-w-md">
+                <span className="text-xs font-medium uppercase tracking-wide text-indigo-600">
+                  Operational Command Center
+                </span>
+                <h2 className="mt-4 text-4xl font-semibold leading-tight tracking-tight">
+                  Plan work.
+                  <br />
+                  Align teams.
+                  <br />
+                  Deliver outcomes.
+                </h2>
+                <p className="mt-6 text-base leading-relaxed text-slate-600">
+                  ResourceOS gives every organization one shared surface for tasks,
+                  assignments, and execution velocity.
                 </p>
               </div>
             </div>
 
-            <Badge className="w-fit rounded-md border border-border bg-accent px-3 py-1 text-xs text-accent-foreground">
-              Operational Command Center
-            </Badge>
-
-            <div className="space-y-4">
-              <h1 className="font-heading text-4xl font-extrabold tracking-tight md:text-5xl">
-                Plan work. Align teams. Deliver outcomes.
-              </h1>
-              <p className="font-body max-w-xl text-base font-normal leading-relaxed text-muted-foreground">
-                ResourceOS gives every organization one shared surface for tasks, assignments, and
-                execution velocity.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-px rounded-lg border border-border bg-border">
-            <div className="grid grid-cols-3 gap-px">
-              <div className="bg-card p-4">
-                <p className="font-body text-xs text-muted-foreground">Teams</p>
-                <p className="font-heading pt-1 text-2xl font-bold tracking-tight">{stats.organizations}</p>
-              </div>
-              <div className="bg-card p-4">
-                <p className="font-body text-xs text-muted-foreground">Active Tasks</p>
-                <p className="font-heading pt-1 text-2xl font-bold tracking-tight">{stats.activeTasks}</p>
-              </div>
-              <div className="bg-card p-4">
-                <p className="font-body text-xs text-muted-foreground">On-time Rate</p>
-                <p className="font-heading pt-1 text-2xl font-bold tracking-tight">94%</p>
-              </div>
+            <div className="grid grid-cols-3 gap-6">
+              <MetricCard label="Teams" value={String(stats.organizations)} />
+              <MetricCard label="Active Tasks" value={String(stats.activeTasks)} />
+              <MetricCard label="On-time Rate" value="94%" />
             </div>
           </div>
         </div>
 
-        <Card className="h-fit rounded-xl border border-border bg-card shadow-none lg:rounded-l-none">
-          <CardHeader className="space-y-2 p-8 md:p-10 md:pb-4">
-            <CardTitle className="font-heading text-3xl font-bold tracking-tight">
-              Welcome back
-            </CardTitle>
-            <CardDescription className="font-body text-sm font-normal leading-relaxed text-muted-foreground">
+        <div className="flex w-full items-center justify-center p-8 lg:w-[55%] lg:p-12">
+          <div className="w-full max-w-sm">
+            <h2 className="text-2xl font-semibold">Welcome back</h2>
+            <p className="mt-2 text-sm text-slate-600">
               Enter your credentials to continue.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6 p-8 pt-2 md:p-10 md:pt-2">
-            <form action={formAction} className="space-y-4">
+            </p>
+
+            <form action={formAction} className="mt-8 space-y-6">
               <input type="hidden" name="redirect" value={redirectParam} />
               <div className="space-y-2">
-                <Label htmlFor="email" className="font-body text-sm font-normal">
+                <label className="text-sm font-medium text-slate-700" htmlFor="email">
                   Email
-                </Label>
+                </label>
                 <Input
                   id="email"
                   name="email"
@@ -99,16 +82,16 @@ useEffect(() => {
                   placeholder="name@company.com"
                   autoComplete="email"
                   required
-                  className="h-10 rounded-md border border-border bg-background shadow-none"
+                  className="h-11 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 />
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="font-body text-sm font-normal">
+                  <label className="text-sm font-medium text-slate-700" htmlFor="password">
                     Password
-                  </Label>
-                  <Link href="#" className="font-body text-xs font-normal text-primary underline-offset-4 hover:underline">
+                  </label>
+                  <Link href="#" className="text-xs text-indigo-600 hover:underline">
                     Forgot password?
                   </Link>
                 </div>
@@ -119,39 +102,49 @@ useEffect(() => {
                   placeholder="Enter your password"
                   autoComplete="current-password"
                   required
-                  className="h-10 rounded-md border border-border bg-background shadow-none"
+                  className="h-11 rounded-md border border-slate-300 bg-white text-sm text-slate-900 shadow-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 />
               </div>
 
               {state.error && (
-                <p className="text-sm font-medium text-destructive">{state.error}</p>
+                <p className="text-sm font-medium text-red-600">{state.error}</p>
               )}
 
               <Button
                 type="submit"
                 disabled={isPending}
-                className="h-10 w-full rounded-md bg-primary text-primary-foreground shadow-none"
+                className="h-11 w-full rounded-md bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700"
               >
                 {isPending ? "Signing in…" : "Sign in"}
               </Button>
-            </form>
 
-            <Separator />
-
-            <div className="space-y-3">
-              <Button variant="outline" className="h-10 w-full rounded-md border border-border shadow-none">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-full rounded-md border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
                 Request Demo
               </Button>
-              <p className="font-body text-center text-sm font-normal leading-relaxed text-muted-foreground">
-                New to the platform?{" "}
-                <Link href="/auth/signup" className="font-medium text-primary underline-offset-4 hover:underline">
-                  Create an account
-                </Link>
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+            </form>
+
+            <p className="mt-8 text-center text-sm text-slate-600">
+              New to the platform?{" "}
+              <Link href="/auth/signup" className="font-medium text-indigo-600">
+                Create an account
+              </Link>
+            </p>
+          </div>
+        </div>
       </section>
     </main>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.06)]">
+      <p className="text-xs font-medium text-slate-500">{label}</p>
+      <p className="mt-2 text-lg font-semibold text-slate-900">{value}</p>
+    </div>
   );
 }
