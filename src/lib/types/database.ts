@@ -530,6 +530,19 @@ export type Database = {
       accept_invite: { Args: { invite_id: string }; Returns: undefined }
       is_manager: { Args: { org: string }; Returns: boolean }
       is_org_member: { Args: { org: string }; Returns: boolean }
+      list_projects_with_meta: {
+        Args: { org_uuid: string; page_size: number; page_offset: number }
+        Returns: Array<{
+          id: string
+          name: string
+          status: string | null
+          start_date: string | null
+          end_date: string | null
+          member_count: number | null
+          completed: number | null
+          total: number | null
+        }>
+      }
     }
     Enums: {
       project_status: "active" | "paused" | "archived"
