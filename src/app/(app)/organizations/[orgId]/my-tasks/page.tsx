@@ -251,9 +251,9 @@ export default function MyTasksPage() {
       )}
 
       <div className="rounded-xl border border-zinc-200/80 bg-white shadow-[0_1px_3px_0_rgba(0,0,0,0.02)]">
-        <div className="hidden grid-cols-[220px_minmax(260px,1fr)_170px_160px] items-center gap-4 border-b border-zinc-200/80 px-4 py-3 text-sm font-semibold text-zinc-500 md:grid">
-          <div>Project</div>
+        <div className="hidden grid-cols-[minmax(260px,1fr)_210px_160px_160px] items-center gap-5 border-b border-zinc-200/80 px-4 py-3 text-sm font-semibold text-zinc-500 md:grid">
           <div>Task</div>
+          <div>Project</div>
           <div>Status</div>
           <div>Due Date</div>
         </div>
@@ -263,10 +263,10 @@ export default function MyTasksPage() {
             Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={index}
-                className="grid grid-cols-1 gap-3 px-4 py-3 md:grid-cols-[220px_minmax(260px,1fr)_170px_160px] md:items-center"
+                className="grid grid-cols-1 gap-3 px-4 py-3 md:grid-cols-[minmax(260px,1fr)_210px_160px_160px] md:items-center md:gap-5"
               >
-                <Skeleton className="h-5 w-28" />
                 <Skeleton className="h-5 w-full" />
+                <Skeleton className="h-5 w-28" />
                 <Skeleton className="h-8 w-28" />
                 <Skeleton className="h-5 w-24" />
               </div>
@@ -285,13 +285,13 @@ export default function MyTasksPage() {
             filteredTasks.map((task) => (
               <div
                 key={task.id}
-                className="grid grid-cols-1 gap-3 px-4 py-3 transition-colors hover:bg-zinc-50/60 md:grid-cols-[220px_minmax(260px,1fr)_170px_160px] md:items-center"
+                className="grid grid-cols-1 gap-3 px-4 py-3 transition-colors hover:bg-zinc-50/60 md:grid-cols-[minmax(180px,1fr)_210px_160px_160px] md:items-center md:gap-5"
               >
+                <div className="text-sm font-medium text-zinc-900">{task.title}</div>
+
                 <div className="text-sm font-medium text-zinc-700 truncate" title={task.project_name}>
                   {task.project_name}
                 </div>
-
-                <div className="text-sm font-medium text-zinc-900">{task.title}</div>
 
                 <div className="flex flex-col gap-1">
                   <select
