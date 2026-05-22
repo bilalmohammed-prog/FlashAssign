@@ -6,7 +6,6 @@ import { supabase } from "@/lib/supabase/client";
 export type AuthEmployee = {
   id: string;
   full_name: string | null;
-  avatar_url: string | null;
 };
 
 interface AuthEmployeeContextType {
@@ -20,8 +19,6 @@ const AuthEmployeeContext =
   createContext<AuthEmployeeContextType | undefined>(undefined);
 
 export function AuthEmployeeProvider({ children }: { children: ReactNode }) {
-  const [email, setEmail] = useState("");
-
   const [employee, setEmployee] = useState<AuthEmployee | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
@@ -44,7 +41,7 @@ export function AuthEmployeeProvider({ children }: { children: ReactNode }) {
 
       const { data } = await supabase
         .from("profiles")
-        .select("id, full_name, avatar_url")
+        .select("id, full_name")
         .eq("id", user.id)
         .maybeSingle();
 

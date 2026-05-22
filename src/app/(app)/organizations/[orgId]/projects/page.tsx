@@ -153,10 +153,15 @@ export default function ProjectsPage() {
 
   const PAGE_SIZE = 12;
   const projectsCountRef = useRef(0);
+  const addToastRef = useRef(addToast);
 
-useEffect(() => {
-  projectsCountRef.current = projects.length;
-}, [projects.length]);
+  useEffect(() => {
+    projectsCountRef.current = projects.length;
+  }, [projects.length]);
+
+  useEffect(() => {
+    addToastRef.current = addToast;
+  }, [addToast]);
   const loadProjects = useCallback(
     async (replace = true) => {
       if (!orgId) return;
@@ -190,11 +195,19 @@ useEffect(() => {
           endDate: p.end_date,
         }));
 
-        setProjects((prev) => (replace ? mapped : [...prev, ...mapped]));
+        setProjects((prev) => {
+  if (replace) return mapped;
+
+  const merged = [...prev, ...mapped];
+
+  return Array.from(
+    new Map(merged.map((p) => [p.id, p])).values()
+  );
+});
         setHasMore(data.length === PAGE_SIZE);
       } catch (err) {
         console.error("Load projects failed:", err);
-        addToast("Failed to load projects", "error");
+        addToastRef.current("Failed to load projects", "error");
       } finally {
         if (replace) {
           setLoading(false);
@@ -203,7 +216,7 @@ useEffect(() => {
         }
       }
     },
-    [orgId, addToast]
+    [orgId]
   );
 
   useEffect(() => {
@@ -277,7 +290,7 @@ useEffect(() => {
       setEndDate("");
       setSelectedMembers([]);
     } catch {
-      addToast("Create failed", "error");
+      addToastRef.current("Create failed", "error");
     } finally {
       setCreating(false);
     }
@@ -316,7 +329,7 @@ useEffect(() => {
       await deleteProject(id);
       await loadProjects();
     } catch {
-      addToast("Delete failed", "error");
+      addToastRef.current("Delete failed", "error");
       setProjects(backup);
     }
   }
@@ -377,10 +390,10 @@ useEffect(() => {
     try {
       await updateProjectAction(renameCard.projectId, { name: nextName });
       setProjects((prev) => prev.map((project) => (project.id === renameCard.projectId ? { ...project, name: nextName } : project)));
-      addToast("Project renamed", "success");
+      addToastRef.current("Project renamed", "success");
       setRenameCard(null);
     } catch {
-      addToast("Failed to rename project", "error");
+      addToastRef.current("Failed to rename project", "error");
     }
   }
   const pageHeader = useMemo(
@@ -535,7 +548,7 @@ useEffect(() => {
                                     try {
                                       await updateProjectAction(p.id, { endDate: val });
                                     } catch {
-                                      addToast("Failed to update due date", "error");
+                                      addToastRef.current("Failed to update due date", "error");
                                       await loadProjects();
                                     } finally {
                                       setSavingProjectId(null);
@@ -566,7 +579,7 @@ useEffect(() => {
                               await updateProjectAction(p.id, { status: nv });
                               setProjects((prev) => prev.map((pp) => (pp.id === p.id ? { ...pp, status: nv } : pp)));
                             } catch {
-                              addToast("Failed to update status", "error");
+                              addToastRef.current("Failed to update status", "error");
                             }
                           }}
                           onClick={(e) => e.stopPropagation()}
@@ -618,7 +631,7 @@ useEffect(() => {
                                   try {
                                     await updateProjectAction(p.id, { endDate: val });
                                   } catch {
-                                    addToast("Failed to update due date", "error");
+                                    addToastRef.current("Failed to update due date", "error");
                                     await loadProjects();
                                   } finally {
                                     setSavingProjectId(null);

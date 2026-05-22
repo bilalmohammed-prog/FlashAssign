@@ -18,7 +18,6 @@ export type CommentWithAuthor = CommentRow & {
   author: {
     id: string;
     full_name: string | null;
-    avatar_url: string | null;
   } | null;
 };
 
@@ -105,7 +104,7 @@ export async function listCommentsForTask(
 
   const { data: profiles, error: profilesError } =
     userIds.length > 0
-      ? await supabase.from("profiles").select("id,full_name,avatar_url").in("id", userIds)
+      ? await supabase.from("profiles").select("id,full_name").in("id", userIds)
       : { data: [], error: null };
 
   if (profilesError) {
@@ -131,7 +130,6 @@ export async function listCommentsForTask(
         ? {
             id: profile.id,
             full_name: profile.full_name ?? null,
-            avatar_url: profile.avatar_url ?? null,
           }
         : null,
     };

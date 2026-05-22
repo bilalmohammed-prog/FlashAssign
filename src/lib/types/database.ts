@@ -347,7 +347,6 @@ export type Database = {
       profiles: {
         Row: {
           active_organization_id: string | null
-          avatar_url: string | null
           created_at: string | null
           full_name: string | null
           id: string
@@ -355,7 +354,6 @@ export type Database = {
         }
         Insert: {
           active_organization_id?: string | null
-          avatar_url?: string | null
           created_at?: string | null
           full_name?: string | null
           id: string
@@ -363,7 +361,6 @@ export type Database = {
         }
         Update: {
           active_organization_id?: string | null
-          avatar_url?: string | null
           created_at?: string | null
           full_name?: string | null
           id?: string
