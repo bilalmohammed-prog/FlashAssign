@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
-import { useAuthEmployee } from "@/components/providers/auth/AuthContext";
+import { useAuthEmployee } from "@/components/providers/Auth/AuthContext";
 
 type ProfileMenuProps = {
   collapsed?: boolean;
