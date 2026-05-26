@@ -5,6 +5,13 @@ import { useParams, useRouter } from "next/navigation";
 import { Building2 } from "lucide-react";
 import { getUserOrganizationsAction } from "@/actions/organization/getUserOrganizations";
 import { switchOrganization } from "@/actions/organization/switchOrganization";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type OrganizationOption = {
   id: string;
@@ -116,21 +123,33 @@ export default function OrgSwitcher({ collapsed }: OrgSwitcherProps) {
   }
 
   const dropdown = (
-    <select
+    <Select
       value={orgId}
-      disabled={switchingId !== null}
-      onChange={(e) => {
-        void handleSwitch(e.target.value);
+      onValueChange={(value) => {
+        void handleSwitch(value);
       }}
-      className="h-9 w-full rounded-md border border-zinc-200/70 bg-white px-2.5 text-sm text-zinc-700 outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-70"
+      disabled={switchingId !== null}
     >
-      {orgs.map((org) => (
-        <option key={org.id} value={org.id}>
-          {org.name || org.slug}
-        </option>
-      ))}
-      <option value="__create__">Create new organization...</option>
-    </select>
+      <SelectTrigger className="h-10 w-full rounded-md border border-zinc-200/70 bg-white text-sm font-semibold text-zinc-900 shadow-none focus:ring-2 focus:ring-indigo-500">
+        <SelectValue placeholder="Select organization" />
+      </SelectTrigger>
+      <SelectContent>
+        {orgs.map((org) => (
+          <SelectItem key={org.id} value={org.id}>
+            {org.name || org.slug}
+          </SelectItem>
+        ))}
+        <div className="border-t border-zinc-100 px-2 py-2">
+          <button
+            type="button"
+            onClick={() => router.push("/onboarding")}
+            className="w-full rounded-md border border-zinc-200/70 bg-white px-3 py-2 text-left text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
+          >
+            Create new organization
+          </button>
+        </div>
+      </SelectContent>
+    </Select>
   );
 
   if (collapsed) {
