@@ -153,31 +153,65 @@ export default function OrgSwitcher({ collapsed }: OrgSwitcherProps) {
   );
 
   if (collapsed) {
-    return (
-      <div className="flex justify-center">
-        <div className="relative flex h-11 w-11 items-center justify-center rounded-lg border border-zinc-200/60 bg-zinc-50/60 text-zinc-600">
-          <Building2 className="h-5 w-5" />
-          <span className="sr-only">Switch organization</span>
-          <select
-            value={orgId}
-            disabled={switchingId !== null}
-            onChange={(e) => {
-              void handleSwitch(e.target.value);
-            }}
-            aria-label="Switch organization"
-            className="absolute inset-0 cursor-pointer opacity-0"
-          >
-            {orgs.map((org) => (
-              <option key={org.id} value={org.id}>
-                {org.name || org.slug}
-              </option>
-            ))}
-            <option value="__create__">Create new organization...</option>
-          </select>
-        </div>
-      </div>
-    );
-  }
+  return (
+    <div className="flex justify-center">
+      <Select
+        value={orgId}
+        onValueChange={(value) => {
+          void handleSwitch(value);
+        }}
+        disabled={switchingId !== null}
+      >
+        <SelectTrigger
+          aria-label="Switch organization"
+          className="
+            h-11 w-11 rounded-xl
+            border border-zinc-200/70
+            bg-white
+            p-0
+            shadow-none
+            transition-colors
+            hover:bg-zinc-50
+            focus:ring-2 focus:ring-indigo-500
+          "
+        >
+          <div className="flex w-full items-center justify-center">
+            <Building2 className="h-5 w-5 text-zinc-700" />
+          </div>
+        </SelectTrigger>
+
+        <SelectContent
+  position="popper"
+  side="right"
+  align="start"
+  sideOffset={8}
+>
+          {orgs.map((org) => (
+            <SelectItem key={org.id} value={org.id}>
+              {org.name || org.slug}
+            </SelectItem>
+          ))}
+
+          <div className="border-t border-zinc-100 px-2 py-2">
+            <button
+              type="button"
+              onClick={() => router.push("/onboarding")}
+              className="
+                w-full rounded-md px-3 py-2
+                text-left text-sm font-medium
+                text-zinc-700
+                transition-colors
+                hover:bg-zinc-100
+              "
+            >
+              Create new organization
+            </button>
+          </div>
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
 
   return (
     <div className="space-y-2 rounded-lg border border-zinc-200/60 bg-zinc-50/60 px-3 py-2 shadow-none">
