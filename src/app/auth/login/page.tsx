@@ -112,18 +112,18 @@ export default function LoginPage() {
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-brand backdrop-blur">
               <span className="h-1.5 w-1.5 rounded-full bg-brand" />
-              AI-powered sprint planning for dev teams
+              Instant work allocation tool
             </div>
 
             <h1 className="mt-4 font-display text-[38px] font-semibold leading-[1.06] tracking-[-0.025em] text-foreground sm:text-[46px] lg:text-[54px]">
-              One-click sprint planning.
+              One-click task allocation.
               <br />
-              <span className="text-foreground/55">Deterministic task allocation.</span>
+              <span className="text-foreground/55">Fast, lightweight workload orchestration.</span>
             </h1>
 
             <p className="mt-4 max-w-xl text-[15.5px] leading-relaxed text-muted-foreground">
-              Stop dragging tickets. Define team roles, import tasks, and let FlashAssign generate
-              optimal sprint assignments automatically. Review and approve in seconds.
+              Stop dragging tickets. Define team roles, create tasks, and let FlashAssign generate
+              optimal assignments automatically. Review and approve in seconds.
             </p>
 
             {/* Workflow */}
@@ -137,7 +137,7 @@ export default function LoginPage() {
             <div className="relative flex flex-wrap items-center gap-2">
               <WorkflowStep
                 icon={Users}
-                label="Define Capabilities"
+                label="Define Team Roles"
               />
 
               <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/45" />
@@ -189,15 +189,12 @@ export default function LoginPage() {
             <div className="relative w-full max-w-[420px]">
               <div className="absolute -inset-px -z-10 rounded-2xl bg-gradient-to-b from-border/60 to-transparent" />
               <div className="rounded-2xl border border-border/80 bg-card/90 p-7 shadow-[0_28px_60px_-44px_rgba(15,23,42,0.55)] backdrop-blur">
-                <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                  <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                  Workspace ready
-                </div>
+                
                 <h2 className="mt-3.5 font-display text-2xl font-semibold tracking-tight text-foreground">
                   Get started
                 </h2>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                  Sign in to your workspace to plan your next sprint.
+                  Sign in to your workspace to plan your next project.
                 </p>
 
                 {oauthError && (
