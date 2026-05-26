@@ -101,8 +101,6 @@ export default function OrgSwitcher({ collapsed }: OrgSwitcherProps) {
     }
   }
 
-  const activeLabel = activeOrg?.name ?? activeOrg?.slug ?? "Organization";
-
   if (loading) {
     return (
       <div className="rounded-lg border border-zinc-200/60 bg-zinc-50/60 px-3 py-2 text-xs text-zinc-500">
@@ -124,7 +122,7 @@ export default function OrgSwitcher({ collapsed }: OrgSwitcherProps) {
   }
 
   const triggerClass = collapsed
-    ? "h-11 w-11 justify-center rounded-xl border border-zinc-200/70 bg-white p-0 text-zinc-700 shadow-none transition-colors hover:bg-zinc-50 focus:ring-2 focus:ring-indigo-500 [&>svg]:hidden"
+  ? "flex h-11 w-full items-center justify-center rounded-lg border-0 bg-transparent p-0 text-zinc-600 shadow-none transition-colors hover:bg-zinc-50 hover:text-zinc-900 focus:ring-0 data-[state=open]:bg-zinc-100 data-[state=open]:text-zinc-900 [&>svg]:hidden"
     : "h-10 w-full rounded-md border border-zinc-200/70 bg-white text-sm font-semibold text-zinc-900 shadow-none focus:ring-2 focus:ring-indigo-500";
 
   const contentProps = collapsed
@@ -141,8 +139,8 @@ export default function OrgSwitcher({ collapsed }: OrgSwitcherProps) {
     >
       <SelectTrigger aria-label="Switch organization" className={triggerClass}>
         {collapsed ? (
-          <span className="flex h-11 w-11 items-center justify-center">
-            <Building2 className="h-5 w-5" />
+          <span className="flex items-center justify-center">
+            <Building2 className="h-6 w-6 shrink-0 text-zinc-600" strokeWidth={2.5} />
           </span>
         ) : (
           <SelectValue placeholder="Select organization" />
