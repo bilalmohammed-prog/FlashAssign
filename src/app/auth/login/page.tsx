@@ -103,26 +103,7 @@ export default function LoginPage() {
               FlashAssign
             </span>
           </div>
-          <nav className="hidden items-center gap-6 text-sm text-muted-foreground/80 md:flex">
-            <a className="transition-colors hover:text-foreground/90" href="#">
-              Product
-            </a>
-            <a className="transition-colors hover:text-foreground/90" href="#">
-              Docs
-            </a>
-            <a className="transition-colors hover:text-foreground/90" href="#">
-              Pricing
-            </a>
-            <a className="transition-colors hover:text-foreground/90" href="#">
-              Changelog
-            </a>
-          </nav>
-          <a
-            href="#signin"
-            className="text-sm font-medium text-foreground/70 transition-colors hover:text-foreground"
-          >
-            Sign in
-          </a>
+          
         </header>
 
         {/* Hero — true split-screen */}
@@ -150,16 +131,45 @@ export default function LoginPage() {
               <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
                 How it works
               </div>
-              <div className="relative mt-3 rounded-xl border border-border bg-card/60 p-2 shadow-card backdrop-blur">
-                <div className="absolute left-6 right-6 top-1/2 h-px -translate-y-1/2 bg-border/70" />
-                <div className="relative flex flex-wrap items-center gap-2">
-                  <WorkflowStep icon={ClipboardList} label="Tasks" />
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50" />
-                  <WorkflowStep icon={BrainCircuit} label="Allocation Engine" highlight />
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50" />
-                  <WorkflowStep icon={Users} label="Team" />
-                </div>
-              </div>
+              <div className="relative mt-3 rounded-xl border border-border bg-card/60 p-3 shadow-card backdrop-blur">
+            <div className="absolute left-8 right-8 top-1/2 h-px -translate-y-1/2 bg-border/60" />
+
+            <div className="relative flex flex-wrap items-center gap-2">
+              <WorkflowStep
+                icon={Users}
+                label="Define Capabilities"
+              />
+
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/45" />
+
+              <WorkflowStep
+                icon={ClipboardList}
+                label="Create Tasks"
+              />
+
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/45" />
+
+              <WorkflowStep
+                icon={CheckCircle2}
+                label="Assign Requirements"
+              />
+
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/45" />
+
+              <WorkflowStep
+                icon={BrainCircuit}
+                label="Allocation Engine"
+                highlight
+              />
+
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/45" />
+
+              <WorkflowStep
+                icon={TrendingUp}
+                label="Review"
+              />
+            </div>
+          </div>
             </div>
 
             {/* Metrics */}
@@ -170,8 +180,7 @@ export default function LoginPage() {
             </div>
 
             <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
-              <ShieldCheck className="h-4 w-4 text-brand/80" />
-              Built for engineering teams. Trusted by builders.
+              Built for fast-paced dev teams
             </div>
           </div>
 
@@ -210,24 +219,13 @@ export default function LoginPage() {
                   {oauthPending ? "Connecting..." : "Continue with Google"}
                 </Button>
 
-                <div className="mt-3 text-center text-xs text-muted-foreground">
-                  No password required.
-                </div>
+                
 
                 <div className="my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-muted-foreground/70">
-                  <div className="h-px flex-1 bg-border" />
-                  or
-                  <div className="h-px flex-1 bg-border" />
+                  
                 </div>
 
-                <Button
-                  variant="outline"
-                  className="h-11 w-full rounded-lg border-border text-sm font-medium"
-                  type="button"
-                  disabled
-                >
-                  Continue with SSO
-                </Button>
+                
 
                 <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">
                   By continuing, you agree to our{" "}
@@ -242,20 +240,12 @@ export default function LoginPage() {
                 </p>
               </div>
 
-              <div className="mt-4 flex items-center justify-between px-1 text-xs text-muted-foreground">
-                <span>SOC 2 Type II</span>
-                <span>·</span>
-                <span>GDPR</span>
-                <span>·</span>
-                <span>SSO / SAML</span>
-              </div>
+              
             </div>
           </div>
         </section>
 
-        <footer className="border-t border-border/70 py-4 text-xs text-muted-foreground">
-          © {new Date().getFullYear()} FlashAssign Inc. · Plan smarter. Deliver faster.
-        </footer>
+        
       </div>
     </main>
   );
