@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import {
   Zap,
   ClipboardList,
-  ChevronRight,
+  ChevronsRight,
   BrainCircuit,
   Users,
   Timer,
@@ -94,12 +94,12 @@ export default function LoginPage() {
 
       <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col px-6 lg:px-10">
         {/* Nav */}
-        <header className="flex items-center justify-between py-4">
+        <header className="flex items-center justify-between py-4 mt-3">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-brand-foreground shadow-brand">
-              <Zap className="h-4 w-4" strokeWidth={2.5} />
+              <Zap className="h-5 w-5" strokeWidth={2.5} />
             </div>
-            <span className="font-display text-[15px] font-semibold tracking-tight text-foreground">
+            <span className="font-display text-[22px] font-semibold tracking-tight text-foreground">
               FlashAssign
             </span>
           </div>
@@ -132,7 +132,7 @@ export default function LoginPage() {
                 How it works
               </div>
               <div className="relative mt-3 rounded-xl border border-border bg-card/60 p-3 shadow-card backdrop-blur">
-            <div className="absolute left-8 right-8 top-1/2 h-px -translate-y-1/2 bg-border/60" />
+            
 
             <div className="relative flex flex-wrap items-center gap-2">
               <WorkflowStep
@@ -140,21 +140,21 @@ export default function LoginPage() {
                 label="Define Team Roles"
               />
 
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/45" />
+              <ChevronsRight className="h-3.5 w-3.5 shrink-0 text-brand/35" />
 
               <WorkflowStep
                 icon={ClipboardList}
                 label="Create Tasks"
               />
 
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/45" />
+              <ChevronsRight className="h-3.5 w-3.5 shrink-0 text-brand/35" />
 
               <WorkflowStep
                 icon={CheckCircle2}
                 label="Assign Requirements"
               />
 
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/45" />
+              <ChevronsRight className="h-3.5 w-3.5 shrink-0 text-brand/35" />
 
               <WorkflowStep
                 icon={BrainCircuit}
@@ -162,7 +162,7 @@ export default function LoginPage() {
                 highlight
               />
 
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/45" />
+              <ChevronsRight className="h-3.5 w-3.5 shrink-0 text-brand/35" />
 
               <WorkflowStep
                 icon={TrendingUp}
@@ -174,7 +174,7 @@ export default function LoginPage() {
 
             {/* Metrics */}
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Metric icon={Timer} label="Allocation Speed" value="< 1s" tone="brand" />
+              <Metric icon={Timer} label="Allocation Speed" value="< 10s" tone="brand" />
               <Metric icon={CheckCircle2} label="Logic" value="Deterministic" tone="neutral" />
               <Metric icon={TrendingUp} label="Time Saved" value="85%" tone="success" />
             </div>
@@ -264,7 +264,7 @@ function WorkflowStep({
         "flex items-center gap-2.5 rounded-lg border border-border/70 px-3 py-2 text-sm font-medium shadow-sm transition-colors " +
         (highlight
           ? "bg-brand-soft text-brand ring-1 ring-brand/10"
-          : "bg-background/70 text-foreground/85 hover:bg-accent/60")
+          : "bg-background/70 text-foreground/85")
       }
     >
       <Icon className="h-4 w-4" strokeWidth={2} />
