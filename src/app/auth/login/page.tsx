@@ -166,31 +166,46 @@ export default function LoginPage() {
               </div>
               <div className="relative mt-3 overflow-hidden rounded-2xl border border-border bg-card/60 shadow-card backdrop-blur">
 
-  <div className="flex flex-wrap items-center">
+  <div className="grid grid-cols-3 gap-y-2 px-3 py-3">
 
-    <ChainStep icon={Users} label="Define Team Roles" />
-
-    <ChainArrow />
-
-    <ChainStep icon={ClipboardList} label="Create Tasks" />
-
-    <ChainArrow />
-
-    <ChainStep icon={CheckCircle2} label="Assign Requirements" />
-
-    <ChainArrow />
-
-    <ChainStep
-      icon={BrainCircuit}
-      label="Allocation Engine"
-      highlight
-    />
-
-    <ChainArrow />
-
-    <ChainStep icon={TrendingUp} label="Review" />
-
+  {/* Row 1 */}
+  <div className="flex justify-start">
+    <div className="flex items-center">
+      <ChainStep icon={Users} label="Define Team Roles" />
+      <ChainArrow />
+    </div>
   </div>
+
+  <div className="flex justify-center">
+    <div className="flex items-center">
+      <ChainStep icon={ClipboardList} label="Create Tasks" />
+      <ChainArrow />
+    </div>
+  </div>
+
+  <div className="flex justify-end">
+    <ChainStep icon={CheckCircle2} label="Assign Requirements" />
+  </div>
+
+  {/* Row 2 */}
+  <div className="flex justify-start">
+    <div className="flex items-center">
+      <ChainStep
+        icon={BrainCircuit}
+        label="Allocation Engine"
+        highlight
+      />
+      <ChainArrow />
+    </div>
+  </div>
+
+  <div className="flex justify-center">
+    <ChainStep icon={TrendingUp} label="Review" />
+  </div>
+
+  {/* Dummy spacer */}
+  <div />
+</div>
 </div>
             </div>
 
