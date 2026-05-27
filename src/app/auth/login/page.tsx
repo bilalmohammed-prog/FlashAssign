@@ -71,7 +71,7 @@ function ChainStep({
 
 function ChainArrow() {
   return (
-    <div className="flex items-center text-foreground/25">
+    <div className="flex items-center text-foreground/45">
       <ChevronsRight className="h-3.5 w-3.5" />
     </div>
   );
@@ -185,6 +185,7 @@ export default function LoginPage() {
 
   <div className="flex justify-end">
     <ChainStep icon={CheckCircle2} label="Assign Requirements" />
+    
   </div>
 
   {/* Row 2 */}
