@@ -11,7 +11,8 @@ import {
   Timer,
   CheckCircle2,
   TrendingUp,
-  ShieldCheck,
+  UserRoundCheck,
+  Bot
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase/client";
@@ -44,7 +45,37 @@ function GoogleIcon() {
     </svg>
   );
 }
+function ChainStep({
+  icon: Icon,
+  label,
+  highlight = false,
+}: {
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  label: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={
+        "flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors " +
+        (highlight
+          ? "bg-brand/10 text-brand"
+          : "text-foreground/85")
+      }
+    >
+      <Icon className="h-4 w-4" strokeWidth={2} />
+      {label}
+    </div>
+  );
+}
 
+function ChainArrow() {
+  return (
+    <div className="flex items-center text-foreground/25">
+      <ChevronsRight className="h-3.5 w-3.5" />
+    </div>
+  );
+}
 export default function LoginPage() {
   const searchParams = useSearchParams();
   const redirectParam = searchParams.get("redirect") ?? "";
@@ -83,8 +114,8 @@ export default function LoginPage() {
     <main className="relative min-h-screen overflow-hidden bg-background">
       {/* Background engineering decor */}
       <CircuitDecor
-        position="tl"
-        className="pointer-events-none absolute -left-16 -top-16 h-[340px] w-[440px] text-brand/20"
+        position="tr"
+        className="pointer-events-none absolute -right-16 -top-16 h-[340px] w-[440px] text-brand/20"
       />
       <CircuitDecor
         position="br"
@@ -118,7 +149,9 @@ export default function LoginPage() {
             <h1 className="mt-4 font-display text-[38px] font-semibold leading-[1.06] tracking-[-0.025em] text-foreground sm:text-[46px] lg:text-[54px]">
               One-click task allocation.
               <br />
-              <span className="text-foreground/55">Fast, lightweight workload orchestration.</span>
+              <span className="text-[0.65em] font-medium text-foreground/55">
+    Fast, lightweight workload orchestration.
+  </span>
             </h1>
 
             <p className="mt-4 max-w-xl text-[15.5px] leading-relaxed text-muted-foreground">
@@ -131,52 +164,41 @@ export default function LoginPage() {
               <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
                 How it works
               </div>
-              <div className="relative mt-3 rounded-xl border border-border bg-card/60 p-3 shadow-card backdrop-blur">
-            
+              <div className="relative mt-3 overflow-hidden rounded-2xl border border-border bg-card/60 shadow-card backdrop-blur">
 
-            <div className="relative flex flex-wrap items-center gap-2">
-              <WorkflowStep
-                icon={Users}
-                label="Define Team Roles"
-              />
+  <div className="flex flex-wrap items-center">
 
-              <ChevronsRight className="h-3.5 w-3.5 shrink-0 text-brand/35" />
+    <ChainStep icon={Users} label="Define Team Roles" />
 
-              <WorkflowStep
-                icon={ClipboardList}
-                label="Create Tasks"
-              />
+    <ChainArrow />
 
-              <ChevronsRight className="h-3.5 w-3.5 shrink-0 text-brand/35" />
+    <ChainStep icon={ClipboardList} label="Create Tasks" />
 
-              <WorkflowStep
-                icon={CheckCircle2}
-                label="Assign Requirements"
-              />
+    <ChainArrow />
 
-              <ChevronsRight className="h-3.5 w-3.5 shrink-0 text-brand/35" />
+    <ChainStep icon={CheckCircle2} label="Assign Requirements" />
 
-              <WorkflowStep
-                icon={BrainCircuit}
-                label="Allocation Engine"
-                highlight
-              />
+    <ChainArrow />
 
-              <ChevronsRight className="h-3.5 w-3.5 shrink-0 text-brand/35" />
+    <ChainStep
+      icon={BrainCircuit}
+      label="Allocation Engine"
+      highlight
+    />
 
-              <WorkflowStep
-                icon={TrendingUp}
-                label="Review"
-              />
-            </div>
-          </div>
+    <ChainArrow />
+
+    <ChainStep icon={TrendingUp} label="Review" />
+
+  </div>
+</div>
             </div>
 
             {/* Metrics */}
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Metric icon={Timer} label="Allocation Speed" value="< 10s" tone="brand" />
-              <Metric icon={CheckCircle2} label="Logic" value="Deterministic" tone="neutral" />
-              <Metric icon={TrendingUp} label="Time Saved" value="85%" tone="success" />
+              <Metric icon={Bot} label="Assignment Logic" value="Algorithmic" tone="neutral" />
+              <Metric icon={UserRoundCheck} label="Final Assignment" value="Human Reviewed" tone="success" />
             </div>
 
             <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground">
@@ -185,61 +207,56 @@ export default function LoginPage() {
           </div>
 
           {/* Right — Auth card */}
-          <div id="signin" className="md:justify-self-end md:pt-4">
-            <div className="relative w-full max-w-[420px]">
-              <div className="absolute -inset-px -z-10 rounded-2xl bg-gradient-to-b from-border/60 to-transparent" />
-              <div className="rounded-2xl border border-border/80 bg-card/90 p-7 shadow-[0_28px_60px_-44px_rgba(15,23,42,0.55)] backdrop-blur">
-                
-                <h2 className="mt-3.5 font-display text-2xl font-semibold tracking-tight text-foreground">
-                  Get started
-                </h2>
-                <p className="mt-1.5 text-sm text-muted-foreground">
-                  Sign in to your workspace to plan your next project.
-                </p>
+<div id="signin" className="md:justify-self-end md:pt-4">
+  <div className="relative w-full max-w-[420px]">
+    <div className="absolute -inset-px -z-10 rounded-2xl bg-gradient-to-b from-border/60 to-transparent" />
+    <div className="rounded-2xl border border-border/80 bg-card/90 p-7 shadow-[0_28px_60px_-44px_rgba(15,23,42,0.55)] backdrop-blur">
+      
+      <h2 className="mt-3.5 font-display text-2xl font-semibold tracking-tight text-foreground">
+        Get started
+      </h2>
+      <p className="mt-1.5 text-sm text-muted-foreground">
+        Sign in with Google to access or create your workspace.
+      </p>
 
-                {oauthError && (
-                  <p className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs font-medium text-destructive">
-                    {oauthError}
-                  </p>
-                )}
+      {oauthError && (
+        <p className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs font-medium text-destructive">
+          {oauthError}
+        </p>
+      )}
 
-                <Button
-                  size="lg"
-                  type="button"
-                  onClick={() => {
-                    void handleGoogleSignIn();
-                  }}
-                  disabled={oauthPending}
-                  className="mt-6 h-12 w-full gap-3 rounded-lg bg-brand text-base font-medium text-brand-foreground shadow-brand transition-all hover:bg-brand/92 hover:shadow-elevated disabled:opacity-70"
-                >
-                  <GoogleIcon />
-                  {oauthPending ? "Connecting..." : "Continue with Google"}
-                </Button>
+      <Button
+        size="lg"
+        type="button"
+        variant="outline"
+        onClick={() => {
+          void handleGoogleSignIn();
+        }}
+        disabled={oauthPending}
+        className="mt-6 h-12 w-full gap-3 rounded-lg bg-background border-border hover:bg-muted text-base font-medium text-foreground transition-all disabled:opacity-70"
+      >
+        {oauthPending ? (
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+        ) : (
+          <GoogleIcon />
+        )}
+        {oauthPending ? "Connecting..." : "Continue with Google"}
+      </Button>
 
-                
-
-                <div className="my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-muted-foreground/70">
-                  
-                </div>
-
-                
-
-                <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">
-                  By continuing, you agree to our{" "}
-                  <a href="#" className="text-foreground/80 underline-offset-4 hover:underline">
-                    Terms
-                  </a>{" "}
-                  and{" "}
-                  <a href="#" className="text-foreground/80 underline-offset-4 hover:underline">
-                    Privacy Policy
-                  </a>
-                  .
-                </p>
-              </div>
-
-              
-            </div>
-          </div>
+      <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">
+        By continuing, you agree to our{" "}
+        <a href="#" className="text-foreground/80 underline-offset-4 hover:underline">
+          Terms
+        </a>{" "}
+        and{" "}
+        <a href="#" className="text-foreground/80 underline-offset-4 hover:underline">
+          Privacy Policy
+        </a>
+        .
+      </p>
+    </div>
+  </div>
+</div>
         </section>
 
         

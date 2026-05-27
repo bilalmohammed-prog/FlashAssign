@@ -3,15 +3,22 @@ export function CircuitDecor({
   position = "tl",
 }: {
   className?: string;
-  position?: "tl" | "br";
+  position?: "tl" | "tr" | "bl" | "br";
 }) {
-  const flip = position === "br";
+  const transform =
+  position === "tr"
+    ? "scale(-1,1)"
+    : position === "bl"
+      ? "scale(1,-1)"
+      : position === "br"
+        ? "scale(-1,-1)"
+        : undefined;
   return (
     <svg
       aria-hidden="true"
       viewBox="0 0 420 320"
       className={className}
-      style={flip ? { transform: "scale(-1,-1)" } : undefined}
+      style={transform ? { transform } : undefined}
       fill="none"
       stroke="currentColor"
       strokeWidth="1"
