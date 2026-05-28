@@ -266,7 +266,7 @@ export default function EmployeeTasksPage() {
       .is("tasks.deleted_at", null);
 
     return mapAssignmentRowsToEmployeeTasks((data ?? []) as AssignmentTaskRow[]);
-  }, [employeeId, orgId]);
+  }, [orgId]);
 
   const selectedTaskIdSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds]);
 

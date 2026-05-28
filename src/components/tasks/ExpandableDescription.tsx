@@ -32,7 +32,7 @@ export function ExpandableDescription({
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
-        className="group flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-800"
+        className="group inline-flex w-fit max-w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-800"
         aria-expanded={expanded}
         aria-controls={contentId}
       >
