@@ -408,6 +408,7 @@ export default function EmployeeTasksPage() {
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button
               className="h-8 border-transparent bg-indigo-600 px-3.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
+              onClick={() => setShowCreate(true)}
             >
               <Plus className="mr-2 h-4 w-4 opacity-90" />
               Add Task

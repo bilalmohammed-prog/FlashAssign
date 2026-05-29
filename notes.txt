@@ -1,7 +1,8 @@
 
 1. test permissions
 2. improve inbox invite accept/ decline ui doesnt exist yet
-
+3. what happens to tasks after the person leaves the org?
+4. add required searching for tasks
 instant allocation of tasks in projects:
 
 factors:
