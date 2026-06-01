@@ -360,7 +360,7 @@ export default function TeamTabsClient({
                     <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
                       <th className="px-4 py-3 font-medium">Member</th>
                       <th className="px-4 py-3 font-medium">Role</th>
-                      <th className="px-4 py-3 font-medium" colSpan={3}>
+                      <th className="px-4 py-3 font-medium pl-50" colSpan={3}>
                         Actions
                       </th>
                     </tr>
@@ -392,7 +392,7 @@ export default function TeamTabsClient({
                         </td>
                         <td className="px-4 py-3" colSpan={3}>
                           {canManageMembers ? (
-                            <div className="flex w-full flex-wrap items-center justify-end gap-2">
+                            <div className="flex w-full flex-wrap items-center justify-start gap-2 pl-30">
                               <Select
                                 value={getEffectiveRole(member)}
                                 onValueChange={(value) => onRoleSelect(member, value as RoleType)}
@@ -418,7 +418,7 @@ export default function TeamTabsClient({
                               </form>
                             </div>
                           ) : (
-                            <p className="text-sm text-muted-foreground">Read-only</p>
+                            <p className="text-sm text-muted-foreground pl-45">Read-only</p>
                           )}
                         </td>
                       </tr>
