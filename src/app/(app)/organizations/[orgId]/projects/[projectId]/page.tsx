@@ -161,6 +161,7 @@ export default async function ProjectWorkspacePage({ params }: ProjectWorkspaceP
     projectId: project.id,
     projectName: project.name,
     role: tenant.role,
+    userId: tenant.userId,
     projectMembers,
     tasks: initialTasks,
   };

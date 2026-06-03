@@ -21,11 +21,8 @@ export type CommentWithAuthor = CommentRow & {
   } | null;
 };
 
-function canManageComment(role: AppRole, actorId: string, comment: CommentRow): boolean {
-  if (role === "owner" || role === "admin") {
-    return true;
-  }
-  return comment.user_id === actorId;
+function canManageComment(role: AppRole, _actorId: string, _comment: CommentRow): boolean {
+  return role === "owner" || role === "admin";
 }
 
 async function assertTaskInOrganization(

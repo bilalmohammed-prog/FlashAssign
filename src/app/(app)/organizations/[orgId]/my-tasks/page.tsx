@@ -83,8 +83,8 @@ function MyTaskRow({ task, canUpdateStatus, savingId, onStatusChange }: MyTaskRo
         />
       </div>
 
-      <div className="min-w-0 text-sm font-medium text-zinc-700 truncate" title={task.project_name}>
-        {task.project_name}
+      <div className="min-w-0 text-sm font-medium text-zinc-700 truncate" title={task.project_name ?? "No workspace"}>
+        {task.project_name ?? "No workspace"}
       </div>
 
       <div className="flex flex-col gap-1">
@@ -190,13 +190,13 @@ export default function MyTasksPage() {
   }, [orgId]);
 
   const projectOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const options: Array<{ id: string; name: string }> = [];
+    const seen = new Set<string | null>();
+    const options: Array<{ id: string | null; name: string }> = [];
 
     for (const task of tasks) {
       if (!seen.has(task.project_id)) {
         seen.add(task.project_id);
-        options.push({ id: task.project_id, name: task.project_name });
+        options.push({ id: task.project_id, name: task.project_name ?? "No workspace" });
       }
     }
 
@@ -311,7 +311,10 @@ export default function MyTasksPage() {
           >
             <option value="all">All Projects</option>
             {projectOptions.map((project) => (
-              <option key={project.id} value={project.id}>
+              <option
+                key={project.id ?? "no-workspace"}
+                value={project.id ?? "__NO_WORKSPACE__"}
+              >
                 {project.name}
               </option>
             ))}

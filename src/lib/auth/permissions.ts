@@ -1,7 +1,15 @@
-import type { Database } from "@/lib/types/database";
+import type { Database } from "../types/database";
 
 export type DatabaseRole = Database["public"]["Enums"]["role_type"];
-export type AppRole = "owner" | "admin" | "manager" | "member";
+export type AppRole = "owner" | "admin" | "manager" | "employee" | "viewer";
+
+export const APP_ROLES: readonly AppRole[] = [
+  "owner",
+  "admin",
+  "manager",
+  "employee",
+  "viewer",
+] as const;
 
 export type AuthorizationResource =
   | "organization"
@@ -15,6 +23,7 @@ export type AuthorizationAction =
   | "manage_members"
   | "create"
   | "update"
+  | "update_assigned"
   | "delete"
   | "assign";
 
@@ -27,6 +36,7 @@ export type Permission =
   | "task:read"
   | "task:create"
   | "task:update"
+  | "task:update_assigned"
   | "task:delete"
   | "task:assign"
   | "assignment:read"
@@ -74,19 +84,25 @@ const ROLE_PERMISSION_MATRIX: Record<AppRole, readonly Permission[]> = {
     "organization:read",
     "project:create",
     "project:update",
+    "project:delete",
+    "task:read",
     "task:create",
     "task:update",
+    "task:delete",
     "task:assign",
+    "assignment:read",
     "assignment:update",
-    "comment:create",
-    "comment:delete",
   ],
-  member: [
+  employee: [
+    "organization:read",
+    "task:read",
+    "task:update_assigned",
+    "assignment:read",
+  ],
+  viewer: [
     "organization:read",
     "task:read",
     "assignment:read",
-    "comment:create",
-    "comment:update",
   ],
 };
 
@@ -99,6 +115,7 @@ const VALID_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>([
   "task:read",
   "task:create",
   "task:update",
+  "task:update_assigned",
   "task:delete",
   "task:assign",
   "assignment:read",
@@ -108,11 +125,15 @@ const VALID_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>([
   "comment:delete",
 ]);
 
-export function normalizeRole(role: DatabaseRole | AppRole): AppRole {
-  if (role === "owner" || role === "admin" || role === "manager") {
+export function isAppRole(role: string): role is AppRole {
+  return (APP_ROLES as readonly string[]).includes(role);
+}
+
+export function toAppRole(role: DatabaseRole | AppRole): AppRole {
+  if (isAppRole(role)) {
     return role;
   }
-  return "member";
+  throw new Error(`Invalid application role: ${role}`);
 }
 
 export function toPermission(
@@ -127,7 +148,7 @@ export function toPermission(
 }
 
 export function getRolePermissions(role: DatabaseRole | AppRole): readonly Permission[] {
-  return ROLE_PERMISSION_MATRIX[normalizeRole(role)];
+  return ROLE_PERMISSION_MATRIX[toAppRole(role)];
 }
 
 export function hasPermission(
@@ -147,4 +168,17 @@ export function can(
     return false;
   }
   return hasPermission(role, permission);
+}
+
+export type TaskUpdateFields = {
+  title?: string | null;
+  description?: string | null;
+  due_date?: string | null;
+  status?: string | null;
+  project_id?: string | null;
+};
+
+export function isStatusOnlyTaskUpdate(updates: TaskUpdateFields): boolean {
+  const keys = Object.entries(updates).filter(([, value]) => value !== undefined);
+  return keys.length > 0 && keys.every(([key]) => key === "status");
 }

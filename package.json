@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsc --pretty false --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-tests src/__tests__/tenant-isolation/fixtures.ts src/__tests__/tenant-isolation/tenant-isolation.integration.test.ts && node --test .tmp-tests/__tests__/tenant-isolation/tenant-isolation.integration.test.js"
+    "test": "tsc --pretty false --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck --outDir .tmp-tests src/lib/types/database.ts src/lib/auth/permissions.ts src/__tests__/rbac/permissions.test.ts src/__tests__/tenant-isolation/fixtures.ts src/__tests__/tenant-isolation/tenant-isolation.integration.test.ts && node --test .tmp-tests/__tests__/tenant-isolation/tenant-isolation.integration.test.js .tmp-tests/__tests__/rbac/permissions.test.js"
   },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.15.0",

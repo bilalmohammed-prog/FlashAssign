@@ -12,7 +12,7 @@ export async function removeProjectMember(projectId: string, userId: string) {
   const validatedUserId = uuidSchema.parse(userId);
 
   const ctx = await requireOrgContext();
-  authorize("manage_members", "organization", { role: ctx.role });
+  authorize("update", "project", { role: ctx.role });
   await removeProjectMemberService(ctx.supabase, {
     organizationId: ctx.organizationId,
     projectId: validatedProjectId,

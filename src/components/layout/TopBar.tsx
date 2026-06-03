@@ -17,7 +17,7 @@ export default function TopBar({ sidebarCollapsed, onToggleSidebar }: TopBarProp
   void sidebarCollapsed;
   void onToggleSidebar;
   const pathname = usePathname();
-  const { pageHeader } = usePageHeader();
+  const { pageHeader, canManageMembers } = usePageHeader();
 
   const [composeMode, setComposeMode] = useState<"message" | "invite" | null>(null);
 
@@ -67,6 +67,8 @@ export default function TopBar({ sidebarCollapsed, onToggleSidebar }: TopBarProp
               variant="outline"
               className="h-9 rounded-lg border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50"
               onClick={() => setComposeMode("invite")}
+              disabled={!canManageMembers}
+              aria-disabled={!canManageMembers}
             >
               <UserPlus className="mr-2 h-4 w-4 text-zinc-500" strokeWidth={2.2} />
               Send Invite

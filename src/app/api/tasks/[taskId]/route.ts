@@ -2,6 +2,7 @@ import { ValidationError } from "@/lib/api/errors";
 import { fail, ok } from "@/lib/api/response";
 import { requireTenantContext } from "@/lib/auth/tenant-context";
 import { authorize } from "@/lib/auth/authorization";
+import { authorizeTaskUpdate } from "@/lib/auth/task-authorization";
 import { toLegacyTaskStatus } from "@/lib/validation/common";
 import {
   normalizeTaskUpdateStatus,
@@ -30,8 +31,7 @@ export async function PATCH(
     const tenantStart = Date.now();
     const tenant = await requireTenantContext(req);
     console.info(`[perf] [Fetch] api task PATCH requireTenantContext ${Date.now() - tenantStart}ms`);
-    const { supabase, organizationId } = tenant;
-    authorize("update", "task", tenant);
+    const { supabase, organizationId, userId, role } = tenant;
 
     const { taskId } = taskIdParamsSchema.parse(await params);
     const parseStart = Date.now();
@@ -45,6 +45,26 @@ export async function PATCH(
     if (!task) {
       throw new ValidationError({ message: "Task not found in your organization" });
     }
+
+    const assignmentsStart = Date.now();
+    const assignments = await listAssignments(supabase, {
+      organizationId,
+      taskId,
+    });
+    console.info(`[perf] [DB] api task PATCH listAssignments ${Date.now() - assignmentsStart}ms`);
+    const assigneeUserId = assignments[0]?.user_id ?? null;
+
+    const normalizedStatus = normalizeTaskUpdateStatus(body.status);
+    authorizeTaskUpdate(role, {
+      userId,
+      assigneeUserId,
+      updates: {
+        title: body.title,
+        description: body.description,
+        due_date: body.dueDate,
+        status: normalizedStatus,
+      },
+    });
 
     if (task.project_id) {
       // POTENTIAL WATERFALL
@@ -68,7 +88,6 @@ export async function PATCH(
     if (body.description !== undefined)
       updatePayload.description = body.description;
     if (body.dueDate !== undefined) updatePayload.due_date = body.dueDate;
-    const normalizedStatus = normalizeTaskUpdateStatus(body.status);
     if (normalizedStatus !== undefined) updatePayload.status = normalizedStatus;
 
     const updateStart = Date.now();
@@ -89,12 +108,6 @@ export async function PATCH(
       throw new ValidationError({ message: "Task not found in your organization" });
     }
 
-    const assignmentsStart = Date.now();
-    const assignments = await listAssignments(supabase, {
-      organizationId,
-      taskId,
-    });
-    console.info(`[perf] [DB] api task PATCH listAssignments ${Date.now() - assignmentsStart}ms`);
     const assignment = assignments[0];
     console.info(`[perf] [Page] api task PATCH total ${Date.now() - routeStart}ms`);
 

@@ -1,7 +1,8 @@
 "use server";
 
 import { requireOrgContext } from "@/actions/_helpers/requireOrgContext";
-import { authorize } from "@/lib/auth/authorization";
+import { authorizeTaskUpdate } from "@/lib/auth/task-authorization";
+import { listAssignments } from "@/services/resource/assignment.service";
 import { updateTask as updateTaskService } from "@/services/task/task.service";
 import { uuidSchema } from "@/lib/validation/common";
 import { taskUpdateSchema, normalizeTaskUpdateStatus } from "@/lib/validation/task";
@@ -23,7 +24,24 @@ export async function updateTask(
   });
 
   const ctx = await requireOrgContext({ organizationId: validatedOrgId });
-  authorize("update", "task", { role: ctx.role });
+
+  const assignments = await listAssignments(ctx.supabase, {
+    organizationId: ctx.organizationId,
+    taskId: validatedTaskId,
+  });
+  const assigneeUserId = assignments[0]?.user_id ?? null;
+
+  authorizeTaskUpdate(ctx.role, {
+    userId: ctx.userId,
+    assigneeUserId,
+    updates: {
+      title: validatedUpdates.title,
+      description: validatedUpdates.description,
+      due_date: validatedUpdates.dueDate,
+      status: normalizeTaskUpdateStatus(validatedUpdates.status),
+      project_id: validatedUpdates.project_id,
+    },
+  });
 
   return updateTaskService(ctx.supabase, {
     organizationId: ctx.organizationId,

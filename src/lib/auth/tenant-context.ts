@@ -2,7 +2,7 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "@/lib/types/database";
 import { UnauthorizedError, ValidationError } from "@/lib/api/errors";
-import { normalizeRole, type AppRole, type DatabaseRole } from "./permissions";
+import { toAppRole, type AppRole, type DatabaseRole } from "./permissions";
 import { getSupabaseServer } from "@/lib/supabase/server";
 
 type MembershipRow = {
@@ -204,7 +204,7 @@ export async function getTenantContext(
     userId: user.id,
     organizationId,
     databaseRole: membership.role,
-    role: normalizeRole(membership.role),
+    role: toAppRole(membership.role),
   };
 }
 

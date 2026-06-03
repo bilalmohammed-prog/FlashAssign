@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireOrgContext } from "@/actions/_helpers/requireOrgContext";
+import { authorize } from "@/lib/auth/authorization";
 import { addMember } from "@/actions/organization/addMember";
 import { listOrgMembers } from "@/actions/organization/listOrgMembers";
 import { Button } from "@/components/ui/button";
@@ -79,10 +80,15 @@ export default async function OrgSettingsPage({
 
   async function updateRoleMutation(formData: FormData) {
     "use server";
-    const orgCtx = await requireOrgContext();
+    const orgCtx = await requireOrgContext({ organizationId: orgId });
+    authorize("manage_members", "organization", { role: orgCtx.role });
     const userId = String(formData.get("userId") ?? "");
     const role = String(formData.get("role") ?? "employee") as RoleType;
     if (!userId) return;
+
+    if (orgCtx.role === "admin" && role === "owner") {
+      return;
+    }
 
     await orgCtx.supabase
       .from("org_members")
@@ -177,7 +183,7 @@ export default async function OrgSettingsPage({
                   ))}
                 </select>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline">{roleByUserId.get(member.user_id) ?? "member"}</Badge>
+                  <Badge variant="outline">{roleByUserId.get(member.user_id) ?? "employee"}</Badge>
                   <Button type="submit" size="sm">
                     Update Role
                   </Button>

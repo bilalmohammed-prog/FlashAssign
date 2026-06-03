@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { requireOrgContext } from "@/actions/_helpers/requireOrgContext";
+import { authorize } from "@/lib/auth/authorization";
 import { listOrgMembers } from "@/actions/organization/listOrgMembers";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +37,7 @@ export default async function OrgSettingsPage() {
   async function inviteMemberMutation(formData: FormData) {
     "use server";
     const orgCtx = await requireOrgContext();
+    authorize("manage_members", "organization", { role: orgCtx.role });
     const userId = String(formData.get("userId") ?? "").trim();
     const role = String(formData.get("role") ?? "employee") as RoleType;
     if (!userId) return;
@@ -57,6 +59,7 @@ export default async function OrgSettingsPage() {
   async function updateRoleMutation(formData: FormData) {
     "use server";
     const orgCtx = await requireOrgContext();
+    authorize("manage_members", "organization", { role: orgCtx.role });
     const userId = String(formData.get("userId") ?? "");
     const role = String(formData.get("role") ?? "employee") as RoleType;
     if (!userId) return;
@@ -131,7 +134,7 @@ export default async function OrgSettingsPage() {
                   ))}
                 </select>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline">{roleByUserId.get(member.user_id) ?? "member"}</Badge>
+                  <Badge variant="outline">{roleByUserId.get(member.user_id) ?? "employee"}</Badge>
                   <Button type="submit" size="sm">
                     Update Role
                   </Button>

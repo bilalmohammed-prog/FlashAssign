@@ -16,7 +16,7 @@ export async function PATCH(
 ) {
   try {
     const tenant = await requireTenantContext(req);
-    authorize("manage_members", "organization", tenant);
+    authorize("update", "project", tenant);
 
     const { projectId, userId } = projectMemberParamsSchema.parse(await params);
     const payload = projectMemberRoleUpdateSchema.parse(await req.json());
@@ -44,7 +44,7 @@ export async function DELETE(
 ) {
   try {
     const tenant = await requireTenantContext(req);
-    authorize("manage_members", "organization", tenant);
+    authorize("update", "project", tenant);
 
     const { projectId, userId } = projectMemberParamsSchema.parse(await params);
 

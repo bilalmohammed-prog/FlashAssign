@@ -23,7 +23,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/providers/toast";
+import { usePageHeader } from "@/components/layout/PageHeaderContext";
 import type { Database } from "@/lib/types/database";
+import { ROLE_DESCRIPTIONS } from "@/lib/auth/role-descriptions";
+import type { AppRole } from "@/lib/auth/permissions";
 
 type RoleType = Database["public"]["Enums"]["role_type"];
 
@@ -100,9 +103,18 @@ export default function TeamTabsClient({
   const workloadMemberHeaderRef = useRef<HTMLTableCellElement | null>(null);
   const workloadRoleHeaderRef = useRef<HTMLTableCellElement | null>(null);
   const { addToast } = useToast();
+  const { setCanManageMembers } = usePageHeader();
   void addMemberAction;
 
   const canManageMembers = currentRole === "owner" || currentRole === "admin";
+
+  useEffect(() => {
+    setCanManageMembers(canManageMembers);
+
+    return () => {
+      setCanManageMembers(false);
+    };
+  }, [canManageMembers, setCanManageMembers]);
 
   const sortedMembers = useMemo(
     () => [...members].sort((a, b) => a.name.localeCompare(b.name)),
@@ -403,8 +415,13 @@ export default function TeamTabsClient({
                                 </SelectTrigger>
                                 <SelectContent>
                                   {roleOptions.map((role) => (
-                                    <SelectItem key={`${member.user_id}-${role}`} value={role}>
-                                      {role}
+                                    <SelectItem
+                                      key={`${member.user_id}-${role}`}
+                                      value={role}
+                                      
+                                    >
+                                      <span className="font-medium capitalize">{role}</span>
+                                      
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -631,6 +648,7 @@ export default function TeamTabsClient({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
     </div>
   );
 }

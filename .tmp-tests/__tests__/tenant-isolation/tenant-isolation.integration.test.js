@@ -96,10 +96,10 @@ const fixtures_1 = require("./fixtures");
         strict_1.default.equal(assignmentsRes.data?.length ?? 0, 0);
         strict_1.default.equal(messagesRes.data?.length ?? 0, 0);
     });
-    (0, node_test_1.test)("3) member role cannot perform admin actions", async () => {
+    (0, node_test_1.test)("3) employee role cannot perform admin actions", async () => {
         const { data: session } = await fixture.userAMember.client.auth.getSession();
         const token = session.session?.access_token;
-        strict_1.default.ok(token, "Missing member access token");
+        strict_1.default.ok(token, "Missing employee access token");
         const headers = {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",

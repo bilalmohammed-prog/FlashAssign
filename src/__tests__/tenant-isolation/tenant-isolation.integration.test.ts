@@ -114,10 +114,10 @@ describe("tenant isolation integration", () => {
     assert.equal(messagesRes.data?.length ?? 0, 0);
   });
 
-  test("3) member role cannot perform admin actions", async () => {
+  test("3) employee role cannot perform admin actions", async () => {
     const { data: session } = await fixture.userAMember.client.auth.getSession();
     const token = session.session?.access_token;
-    assert.ok(token, "Missing member access token");
+    assert.ok(token, "Missing employee access token");
 
     const headers = {
       Authorization: `Bearer ${token}`,

@@ -10,6 +10,8 @@ import { deleteTask as deleteTaskAction } from "@/actions/task/delete";
 import { listOrgMembers } from "@/actions/organization/listOrgMembers";
 import { supabase } from "@/lib/supabase/client";
 import { useOrgRole } from "@/hooks/useOrgRole";
+import { getWorkspaceCapabilities } from "@/lib/auth/ui-capabilities";
+import { isAppRole, toAppRole } from "@/lib/auth/permissions";
 import { usePageHeader } from "@/components/layout/PageHeaderContext";
 import { Button } from "@/components/ui/button";
 import { ExpandableDescription } from "@/components/tasks/ExpandableDescription";
@@ -44,6 +46,7 @@ type TaskStatus = Enums<"task_status">;
 type EmployeeTaskRowProps = {
   task: EmployeeTask;
   canManage: boolean;
+  canEditStatus: boolean;
   deleteMode: boolean;
   selectedForDelete: boolean;
   projects: ProjectOption[];
@@ -104,6 +107,7 @@ function toTaskJoin(row: AssignmentTaskRow): TaskJoinRow | null {
 const EmployeeTaskRow = memo(function EmployeeTaskRow({
   task,
   canManage,
+  canEditStatus,
   deleteMode,
   selectedForDelete,
   projects,
@@ -122,7 +126,8 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
       ? "cursor-pointer border-red-200 bg-red-50/70 shadow-sm hover:bg-red-50/80"
       : "cursor-pointer border-zinc-100 bg-white hover:border-red-200 hover:bg-red-50/30"
     : "border-zinc-100 bg-white hover:bg-zinc-50/50";
-  const editingDisabled = !canManage || deleteMode;
+  const fieldsDisabled = !canManage || deleteMode;
+  const statusDisabled = deleteMode || (!canManage && !canEditStatus);
 
   return (
     <div
@@ -158,7 +163,7 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
               event.currentTarget.blur();
             }
           }}
-          disabled={editingDisabled}
+          disabled={fieldsDisabled}
           className={`w-full truncate bg-transparent text-[15px] font-medium outline-none disabled:cursor-default ${
             deleteMode && selectedForDelete ? "line-through text-red-900/80" : "text-foreground"
           } ${deleteMode ? "opacity-90" : ""}`}
@@ -169,7 +174,7 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
           onCommit={(nextValue) => {
             onDescriptionCommit(task.task_id, nextValue);
           }}
-          disabled={editingDisabled}
+          disabled={fieldsDisabled}
           className={`mt-1 ${deleteMode ? "opacity-90" : ""}`}
         />
       </div>
@@ -180,7 +185,7 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
           onValueChange={(value) => {
             onProjectChange(task.task_id, value === "__none__" ? null : value);
           }}
-          disabled={editingDisabled}
+          disabled={fieldsDisabled}
         >
           <SelectTrigger className={`h-7 w-full border-none bg-transparent px-0 text-xs text-zinc-500 shadow-none focus-visible:ring-0 ${deleteMode ? "opacity-90" : ""}`}>
             <SelectValue placeholder="No workspace" />
@@ -202,7 +207,7 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
           onValueChange={(value) => {
             onStatusChange(task.task_id, value as TaskStatus);
           }}
-          disabled={editingDisabled}
+          disabled={statusDisabled}
         >
           <SelectTrigger className={`h-8 w-full min-w-32 bg-background text-xs ${deleteMode ? "opacity-85" : ""}`}>
             <SelectValue placeholder="Status" />
@@ -225,7 +230,7 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
             onDueDateChange(task.task_id, event.target.value);
           }}
           className={`h-8 w-full min-w-36 rounded-md border border-input bg-background px-3 text-xs ${deleteMode ? "opacity-85" : ""}`}
-          disabled={editingDisabled}
+          disabled={fieldsDisabled}
         />
       </div>
     </div>
@@ -235,7 +240,11 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
 // POSSIBLE LARGE CLIENT COMPONENT
 export default function EmployeeTasksPage() {
   const role = useOrgRole();
-  const canManage = role === "owner" || role === "admin" || role === "manager";
+  const appRole = role && isAppRole(role) ? toAppRole(role) : null;
+  const canManage = appRole ? getWorkspaceCapabilities(appRole).canManageTasks : false;
+  const canEditOwnAssignedStatus = appRole
+    ? getWorkspaceCapabilities(appRole).canUpdateAssignedTaskStatus
+    : false;
   const { addToast } = useToast();
   const { setPageHeader } = usePageHeader();
 
@@ -254,6 +263,13 @@ export default function EmployeeTasksPage() {
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    void supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id ?? null);
+    });
+  }, []);
 
   useEffect(() => {
     hydrationStartRef.current = performance.now();
@@ -282,6 +298,7 @@ export default function EmployeeTasksPage() {
         `
       )
       .eq("organization_id", orgId)
+      .eq("user_id", employeeId)
       .is("tasks.deleted_at", null);
 
     console.info(
@@ -295,7 +312,7 @@ export default function EmployeeTasksPage() {
       console.info(`[perf] employee-tasks map tasks ${mapMs.toFixed(1)}ms`);
     }
     return result;
-  }, [orgId]);
+  }, [employeeId, orgId]);
 
   const selectedTaskIdSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds]);
 
@@ -587,6 +604,7 @@ export default function EmployeeTasksPage() {
                     key={task.task_id}
                     task={task}
                     canManage={canManage}
+                    canEditStatus={canEditOwnAssignedStatus && currentUserId === employeeId}
                     deleteMode={deleteMode}
                     selectedForDelete={selectedTaskIdSet.has(task.task_id)}
                     projects={projects}

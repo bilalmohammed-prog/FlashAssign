@@ -15,7 +15,7 @@ export async function assignProjectMember(
   const validatedOrgId = uuidSchema.parse(orgId);
 
   const ctx = await requireOrgContext({ organizationId: validatedOrgId });
-  authorize("manage_members", "organization", { role: ctx.role });
+  authorize("update", "project", { role: ctx.role });
   await addProjectMember(ctx.supabase, {
     organizationId: ctx.organizationId,
     projectId: validatedProjectId,

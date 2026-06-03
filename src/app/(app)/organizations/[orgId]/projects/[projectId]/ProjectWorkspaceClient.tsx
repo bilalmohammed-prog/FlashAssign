@@ -18,6 +18,7 @@ import { ExpandableDescription } from "@/components/tasks/ExpandableDescription"
 import { TaskSelectionIndicator } from "@/components/tasks/TaskSelectionIndicator";
 import { useToast } from "@/components/providers/toast";
 import type { AppRole } from "@/lib/auth/permissions";
+import { getWorkspaceCapabilities, canEditTask } from "@/lib/auth/ui-capabilities";
 
 type TaskWithAssignee = Tables<"tasks"> & {
   assignee_id: string | null;
@@ -38,6 +39,7 @@ export type ProjectWorkspaceInitialData = {
   projectId: string;
   projectName: string;
   role: AppRole;
+  userId: string;
   projectMembers: HumanResource[];
   tasks: TaskWithAssignee[];
 };
@@ -45,6 +47,7 @@ export type ProjectWorkspaceInitialData = {
 type TaskRowProps = {
   task: TaskWithAssignee;
   canManage: boolean;
+  canEditStatus: boolean;
   deleteMode: boolean;
   selectedForDelete: boolean;
   projectMembers: HumanResource[];
@@ -57,6 +60,7 @@ type TaskRowProps = {
 const TaskRow = memo(function TaskRow({
   task,
   canManage,
+  canEditStatus,
   deleteMode,
   selectedForDelete,
   projectMembers,
@@ -69,7 +73,8 @@ const TaskRow = memo(function TaskRow({
   const [descriptionValue, setDescriptionValue] = useState(task.description ?? "");
   const [dueDateValue, setDueDateValue] = useState(task.due_date ?? "");
 
-  const editingDisabled = !canManage || deleteMode;
+  const fieldsDisabled = !canManage || deleteMode;
+  const statusDisabled = deleteMode || (!canManage && !canEditStatus);
   const rowClassName = deleteMode
     ? selectedForDelete
       ? "cursor-pointer border-red-200 bg-red-50/70 hover:bg-red-50/80"
@@ -111,7 +116,7 @@ const TaskRow = memo(function TaskRow({
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur();
           }}
-          disabled={editingDisabled}
+          disabled={fieldsDisabled}
           className={`w-full truncate bg-transparent text-[15px] font-medium outline-none disabled:cursor-default ${
             deleteMode && selectedForDelete
               ? "line-through text-red-950/80"
@@ -126,7 +131,7 @@ const TaskRow = memo(function TaskRow({
           onCommit={(nextValue) => {
             onCommitUpdate(task.id, { description: nextValue.trim() ? nextValue : null });
           }}
-          disabled={editingDisabled}
+          disabled={fieldsDisabled}
           className={`mt-1 ${deleteMode ? "opacity-90" : ""}`}
         />
         <div className="mt-1.5 flex items-center gap-3 text-xs text-zinc-500 md:hidden">
@@ -145,7 +150,7 @@ const TaskRow = memo(function TaskRow({
           <select
             value={task.assignee_id || ""}
             onChange={(e) => onAssign(task.id, e.target.value)}
-            disabled={editingDisabled}
+            disabled={fieldsDisabled}
             className={`min-w-0 flex-1 appearance-none bg-transparent text-sm font-medium text-zinc-900 outline-none disabled:cursor-default ${deleteMode ? "opacity-90" : ""}`}
           >
             <option value="">Unassigned</option>
@@ -164,7 +169,7 @@ const TaskRow = memo(function TaskRow({
             <select
               value={task.assignee_id || ""}
               onChange={(e) => onAssign(task.id, e.target.value)}
-              disabled={editingDisabled}
+              disabled={fieldsDisabled}
               className={`min-w-0 flex-1 appearance-none bg-transparent text-sm text-zinc-500 outline-none disabled:cursor-default ${deleteMode ? "opacity-90" : ""}`}
             >
               <option value="">Unassigned</option>
@@ -185,7 +190,7 @@ const TaskRow = memo(function TaskRow({
             const value = e.target.value as TaskStatus;
             onCommitUpdate(task.id, { status: value });
           }}
-          disabled={editingDisabled}
+          disabled={statusDisabled}
           className={`appearance-none rounded-md border px-2.5 py-1 text-[13px] font-medium outline-none disabled:cursor-default ${getTaskStatusBadgeClass(task.status)} ${deleteMode ? "opacity-90" : ""}`}
         >
           <option value="todo">To Do</option>
@@ -207,7 +212,7 @@ const TaskRow = memo(function TaskRow({
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur();
           }}
-          disabled={editingDisabled}
+          disabled={fieldsDisabled}
           className={`bg-transparent text-sm font-medium text-zinc-600 outline-none disabled:cursor-default ${deleteMode ? "opacity-90" : ""}`}
         />
       </div>
@@ -245,7 +250,9 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
   const projectId = initialData.projectId;
   const projectName = initialData.projectName;
   const role = initialData.role;
-  const canManage = role === "owner" || role === "admin" || role === "manager";
+  const userId = initialData.userId;
+  const capabilities = getWorkspaceCapabilities(role);
+  const canManage = capabilities.canManageTasks;
 
   const [projectMembers, setProjectMembers] = useState<HumanResource[]>(initialData.projectMembers);
   const [employees, setEmployees] = useState<HumanResource[]>([]);
@@ -349,10 +356,21 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
 
   const commitTaskUpdate = useCallback(
     (id: string, updates: TablesUpdate<"tasks">) => {
-      updateTaskInState(id, updates);
-      void commitUpdate(id, updates);
+      const task = tasks.find((entry) => entry.id === id);
+      const scopedUpdates = canManage
+        ? updates
+        : canEditTask(role, { userId, assigneeId: task?.assignee_id ?? null }) && updates.status !== undefined
+          ? { status: updates.status }
+          : null;
+
+      if (!scopedUpdates) {
+        return;
+      }
+
+      updateTaskInState(id, scopedUpdates);
+      void commitUpdate(id, scopedUpdates);
     },
-    [commitUpdate, updateTaskInState]
+    [canManage, commitUpdate, role, tasks, updateTaskInState, userId]
   );
 
   const toggleDeleteMode = useCallback(() => {
@@ -595,6 +613,10 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
                 key={`${task.id}-${task.title}-${task.description ?? ""}-${task.due_date ?? ""}`}
                 task={task}
                 canManage={canManage}
+                canEditStatus={canEditTask(role, {
+                  userId,
+                  assigneeId: task.assignee_id,
+                })}
                 deleteMode={deleteMode}
                 selectedForDelete={selectedTaskIdSet.has(task.id)}
                 projectMembers={projectMembers}

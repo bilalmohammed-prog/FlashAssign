@@ -5,19 +5,24 @@ import { createContext, useContext, useMemo, useState } from "react";
 type PageHeaderContextValue = {
   pageHeader: React.ReactNode | null;
   setPageHeader: (node: React.ReactNode | null) => void;
+  canManageMembers: boolean;
+  setCanManageMembers: (value: boolean) => void;
 };
 
 const PageHeaderContext = createContext<PageHeaderContextValue | null>(null);
 
 export function PageHeaderProvider({ children }: { children: React.ReactNode }) {
   const [pageHeader, setPageHeader] = useState<React.ReactNode | null>(null);
+  const [canManageMembers, setCanManageMembers] = useState(false);
 
   const value = useMemo(
     () => ({
       pageHeader,
       setPageHeader,
+      canManageMembers,
+      setCanManageMembers,
     }),
-    [pageHeader]
+    [canManageMembers, pageHeader]
   );
 
   return <PageHeaderContext.Provider value={value}>{children}</PageHeaderContext.Provider>;

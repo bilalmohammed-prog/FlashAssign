@@ -5,7 +5,7 @@ import type {
   AuthorizationResource,
   DatabaseRole,
 } from "./permissions";
-import { can, normalizeRole } from "./permissions";
+import { can, toAppRole } from "./permissions";
 
 export type AuthorizationContext = {
   role: DatabaseRole | AppRole;
@@ -25,8 +25,9 @@ export function authorize(
   context: AuthorizationContext
 ): void {
   if (!isAuthorized(action, resource, context)) {
+    const role = toAppRole(context.role);
     throw new ForbiddenError({
-      message: `Role '${normalizeRole(context.role)}' cannot ${action} ${resource}`,
+      message: `Role '${role}' cannot ${action} ${resource}`,
     });
   }
 }

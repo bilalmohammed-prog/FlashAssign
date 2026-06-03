@@ -7,8 +7,10 @@
 6. cache data
 7. Emp manager relation? high priority
 8. fix teams page propely
+9.  add deleting organizations
+10. CANNOT SEE WHO INVITE IS FROM WHEN OUT OF ORG
 instant allocation of tasks in projects:
-
+11. ask again while removing memebrs are u sure
 factors:
 1. role
 2. work hrs filled

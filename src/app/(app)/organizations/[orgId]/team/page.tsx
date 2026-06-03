@@ -218,6 +218,14 @@ export default async function TeamPage({
       return redirectOrReturn("Member not found");
     }
 
+    if (orgCtx.role === "admin" && role === "owner") {
+      return redirectOrReturn("Admins cannot promote users to owner");
+    }
+    if (orgCtx.role === "admin" && role === "admin") {
+      return redirectOrReturn(
+        "Only owners can assign admin role"
+      );
+    }
     if (orgCtx.role === "admin" && (targetMember.role === "owner" || targetMember.role === "admin")) {
       return redirectOrReturn("Admins cannot change owner/admin roles");
     }

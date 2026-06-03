@@ -8,8 +8,8 @@ export type MyTaskListItem = {
   description: string | null;
   status: Database["public"]["Enums"]["task_status"];
   due_date: string | null;
-  project_id: string;
-  project_name: string;
+  project_id: string | null;
+  project_name: string | null;
   allocated_hours: number | null;
 };
 
@@ -61,10 +61,9 @@ export async function listMyTasks(
 
   const computeStart = Date.now();
   const result = rows
-    .filter((row) => row.tasks?.project_id)
     .map((row) => {
       const task = row.tasks;
-      if (!task || !task.project_id) {
+      if (!task) {
         return null;
       }
 
@@ -74,8 +73,8 @@ export async function listMyTasks(
         description: task.description,
         status: task.status ?? "todo",
         due_date: task.due_date,
-        project_id: task.project_id,
-        project_name: task.projects?.name ?? "Unknown Project",
+        project_id: task.project_id ?? null,
+        project_name: task.projects?.name ?? null,
         allocated_hours: row.allocated_hours ?? null,
       };
     })

@@ -1,6 +1,8 @@
 "use client";
 
 import { useOrgRole } from "@/hooks/useOrgRole";
+import { getWorkspaceCapabilities } from "@/lib/auth/ui-capabilities";
+import { isAppRole, toAppRole } from "@/lib/auth/permissions";
 import { createProjectAction } from "@/actions/project/create";
 import { assignProjectMember } from "@/actions/project/assignProjectMember";
 import { updateProjectAction } from "@/actions/project/update";
@@ -107,7 +109,8 @@ export default function ProjectsClientPage({ orgId, initialProjects }: ProjectsC
   const { addToast } = useToast();
   const { setPageHeader } = usePageHeader();
   const role = useOrgRole();
-  const canManage = role === "owner" || role === "admin" || role === "manager";
+  const canManage =
+    role && isAppRole(role) ? getWorkspaceCapabilities(toAppRole(role)).canManageProjects : false;
 
   const hydrationStartRef = useRef<number | null>(null);
   const renderCountRef = useRef(0);
@@ -206,9 +209,15 @@ export default function ProjectsClientPage({ orgId, initialProjects }: ProjectsC
         endDate: endDate || null,
       });
 
-      if (selectedMembers.length > 0 && created?.id) {
-        await Promise.all(selectedMembers.map((uid) => assignProjectMember(created.id, uid, orgId)));
-      }
+      const memberAssignmentResults =
+        selectedMembers.length > 0 && created?.id
+          ? await Promise.allSettled(
+              selectedMembers.map((uid) => assignProjectMember(created.id, uid, orgId))
+            )
+          : [];
+      const assignedMemberCount = memberAssignmentResults.filter(
+        (result) => result.status === "fulfilled"
+      ).length;
 
       if (created?.id) {
         setProjects((prev) => [
@@ -218,12 +227,16 @@ export default function ProjectsClientPage({ orgId, initialProjects }: ProjectsC
             status: created.status ?? "active",
             startDate: created.start_date ?? null,
             endDate: created.end_date ?? null,
-            memberCount: selectedMembers.length,
+            memberCount: assignedMemberCount,
             completed: 0,
             total: 0,
           },
           ...prev,
         ]);
+      }
+
+      if (memberAssignmentResults.some((result) => result.status === "rejected")) {
+        addToastRef.current("Project created, but failed to assign some members", "error");
       }
 
       setShowCreate(false);

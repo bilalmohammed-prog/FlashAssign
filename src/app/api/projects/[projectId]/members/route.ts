@@ -38,7 +38,7 @@ export async function POST(
 ) {
   try {
     const tenant = await requireTenantContext(req);
-    authorize("manage_members", "organization", tenant);
+    authorize("update", "project", tenant);
 
     const { projectId } = projectIdParamsSchema.parse(await params);
     const payload = projectMemberCreateSchema.parse(await req.json());
