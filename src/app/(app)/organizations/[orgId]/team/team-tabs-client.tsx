@@ -418,15 +418,17 @@ export default function TeamTabsClient({
                   <colgroup>
                     <col style={memberColumnWidth ? { width: `${memberColumnWidth}px` } : undefined} />
                     <col style={roleColumnWidth ? { width: `${roleColumnWidth}px` } : undefined} />
-                    <col />
-                    <col />
-                    <col />
+                    <col style={{ width: "240px" }} />
                   </colgroup>
                   <thead>
                     <tr className="border-b border-border bg-slate-50/80 text-left text-xs uppercase tracking-wide text-slate-500">
                       <th className="px-5 py-4 font-semibold">Member</th>
-                      <th className="px-5 py-4 font-semibold">Role</th>
-                      <th className="px-5 py-4 font-semibold" colSpan={3}>
+
+                      <th className="px-5 py-4 font-semibold">
+                        Role
+                      </th>
+
+                      <th className="px-5 py-4 text-right font-semibold">
                         Actions
                       </th>
                     </tr>
@@ -477,9 +479,9 @@ export default function TeamTabsClient({
                             {effectiveRole}
                           </Badge>
                         </td>
-                        <td className="px-5 py-5" colSpan={3}>
+                        <td className="px-5 py-5">
                           {canManageMembers ? (
-                            <div className="flex w-full flex-wrap items-center justify-start gap-2 pl-30">
+                            <div className="flex items-center justify-end gap-2">
                               <Select
                                 value={getEffectiveRole(member)}
                                 onValueChange={(value) => onRoleSelect(member, value as RoleType)}
@@ -505,7 +507,11 @@ export default function TeamTabsClient({
                               </form>
                             </div>
                           ) : (
-                            <p className="text-sm text-muted-foreground pl-45">Read-only</p>
+                            <div className="flex justify-end">
+                              <span className="text-sm text-muted-foreground">
+                                Read-only
+                              </span>
+                            </div>
                           )}
                         </td>
                       </tr>
