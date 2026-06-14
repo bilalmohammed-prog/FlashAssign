@@ -348,7 +348,11 @@ export default function TeamTabsClient({
 
         <TabsContent value="members" className="space-y-6 pt-2">
           <div className="space-y-4">
-            <div className="flex flex-col gap-2 md:flex-row md:items-center">
+            
+
+            <div className="overflow-hidden rounded-xl border border-border bg-card">
+              <div className="flex items-center justify-between gap-4 p-4">
+                <div className="flex items-center gap-3">
               <input
                 value={memberQuery}
                 onChange={(e) => {
@@ -356,7 +360,7 @@ export default function TeamTabsClient({
                   setMembersPage(1);
                 }}
                 placeholder="Search by name or email..."
-                className="h-9 flex-1 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                className="h-10 w-[430px] rounded-md border border-input bg-background px-3 text-sm"
               />
               <select
                 value={roleFilter}
@@ -385,9 +389,11 @@ export default function TeamTabsClient({
                 <option value="25">25 / page</option>
                 <option value="50">50 / page</option>
               </select>
+              </div>
+              </div>
             </div>
-
             <div className="overflow-hidden rounded-xl border border-border bg-card">
+              
               <div className="overflow-x-auto">
                 <table className="w-full min-w-full border-collapse table-fixed">
                   <colgroup>
@@ -490,6 +496,7 @@ export default function TeamTabsClient({
                 </table>
               </div>
             </div>
+
 
             <div className="flex items-center justify-between text-sm text-muted-foreground">
               <p>
