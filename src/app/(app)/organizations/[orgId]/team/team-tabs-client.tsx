@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { MessageSquare, Search, SlidersHorizontal, UserPlus } from "lucide-react";
+import { MessageSquare, Search, UserPlus } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +58,9 @@ type TeamTabsClientProps = {
   roleOptions: RoleType[];
   currentRole: string;
   addMemberAction: (formData: FormData) => Promise<void>;
-  updateRoleAction: (formData: FormData) => Promise<{ ok: boolean; message?: string }>;
+  updateRoleAction: (
+    formData: FormData,
+  ) => Promise<{ ok: boolean; message?: string }>;
   removeMemberAction: (formData: FormData) => Promise<void>;
 };
 
@@ -72,7 +74,18 @@ function completionPct(done: number, total: number): number {
   if (total === 0) return 0;
   return Math.round((done / total) * 100);
 }
-// INSERT THESE NEW UTILITIES DIRECTLY ABOVE YOUR MAIN "export default function TeamTabsClient" BLOCK:
+const roleSelectStyles: Record<RoleType, string> = {
+  owner:
+    "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 focus:ring-rose-200",
+  admin:
+    "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 focus:ring-amber-200",
+  manager:
+    "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 focus:ring-blue-200",
+  employee:
+    "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 focus:ring-emerald-200",
+  viewer:
+    "border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100 focus:ring-zinc-200",
+};
 
 function getAvatarFallback(name: string) {
   const initials = name
@@ -94,11 +107,16 @@ function getAvatarFallback(name: string) {
 }
 
 const roleColorMap: Record<string, string> = {
-  owner: "border-rose-200 bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50",
-  admin: "border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/50",
-  manager: "border-blue-200 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/50",
-  employee: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
-  viewer: "border-zinc-200 bg-zinc-50 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
+  owner:
+    "border-rose-200 bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50",
+  admin:
+    "border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/50",
+  manager:
+    "border-blue-200 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/50",
+  employee:
+    "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
+  viewer:
+    "border-zinc-200 bg-zinc-50 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
 };
 export default function TeamTabsClient({
   currentUserId,
@@ -114,24 +132,28 @@ export default function TeamTabsClient({
   updateRoleAction,
   removeMemberAction,
 }: TeamTabsClientProps) {
-  const [activeTab, setActiveTab] = useState<"members" | "workload">(selectedTab);
+  const [activeTab, setActiveTab] = useState<"members" | "workload">(
+    selectedTab,
+  );
   const [memberQuery, setMemberQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | RoleType>("all");
   const [membersPage, setMembersPage] = useState(1);
   const [membersPageSize, setMembersPageSize] = useState(10);
   const [workloadQuery, setWorkloadQuery] = useState("");
-  const [workloadRoleFilter, setWorkloadRoleFilter] = useState<"all" | RoleType>("all");
+  const [workloadRoleFilter, setWorkloadRoleFilter] = useState<
+    "all" | RoleType
+  >("all");
   const [workloadPage, setWorkloadPage] = useState(1);
   const [workloadPageSize, setWorkloadPageSize] = useState(10);
-  const [roleOverrides, setRoleOverrides] = useState<Record<string, RoleType>>({});
-  const [pendingRoleChange, setPendingRoleChange] = useState<PendingRoleChange | null>(null);
+  const [roleOverrides, setRoleOverrides] = useState<Record<string, RoleType>>(
+    {},
+  );
+  const [pendingRoleChange, setPendingRoleChange] =
+    useState<PendingRoleChange | null>(null);
   const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
-  const [composeMode, setComposeMode] = useState<"message" | "invite" | null>(null);
-  const [memberColumnWidth, setMemberColumnWidth] = useState<number | null>(null);
-  const [roleColumnWidth, setRoleColumnWidth] = useState<number | null>(null);
-  const workloadTableRef = useRef<HTMLTableElement | null>(null);
-  const workloadMemberHeaderRef = useRef<HTMLTableCellElement | null>(null);
-  const workloadRoleHeaderRef = useRef<HTMLTableCellElement | null>(null);
+  const [composeMode, setComposeMode] = useState<"message" | "invite" | null>(
+    null,
+  );
   const { addToast } = useToast();
   const { setCanManageMembers } = usePageHeader();
   void addMemberAction;
@@ -148,7 +170,7 @@ export default function TeamTabsClient({
 
   const sortedMembers = useMemo(
     () => [...members].sort((a, b) => a.name.localeCompare(b.name)),
-    [members]
+    [members],
   );
 
   const filteredMembers = useMemo(() => {
@@ -166,7 +188,10 @@ export default function TeamTabsClient({
     });
   }, [memberQuery, roleFilter, sortedMembers]);
 
-  const totalMemberPages = Math.max(1, Math.ceil(filteredMembers.length / membersPageSize));
+  const totalMemberPages = Math.max(
+    1,
+    Math.ceil(filteredMembers.length / membersPageSize),
+  );
   const safeMembersPage = Math.min(membersPage, totalMemberPages);
 
   const pagedMembers = useMemo(() => {
@@ -176,14 +201,15 @@ export default function TeamTabsClient({
 
   const sortedWorkload = useMemo(
     () => [...workload].sort((a, b) => b.totalTasks - a.totalTasks),
-    [workload]
+    [workload],
   );
 
   const filteredWorkload = useMemo(() => {
     const normalizedQuery = workloadQuery.trim().toLowerCase();
 
     return sortedWorkload.filter((member) => {
-      const matchesRole = workloadRoleFilter === "all" || member.role === workloadRoleFilter;
+      const matchesRole =
+        workloadRoleFilter === "all" || member.role === workloadRoleFilter;
 
       if (!normalizedQuery) {
         return matchesRole;
@@ -194,7 +220,10 @@ export default function TeamTabsClient({
     });
   }, [sortedWorkload, workloadQuery, workloadRoleFilter]);
 
-  const totalWorkloadPages = Math.max(1, Math.ceil(filteredWorkload.length / workloadPageSize));
+  const totalWorkloadPages = Math.max(
+    1,
+    Math.ceil(filteredWorkload.length / workloadPageSize),
+  );
   const safeWorkloadPage = Math.min(workloadPage, totalWorkloadPages);
 
   const pagedWorkload = useMemo(() => {
@@ -206,44 +235,11 @@ export default function TeamTabsClient({
     return roleOverrides[member.user_id] ?? member.role;
   };
 
-  const syncMembersGeometryFromWorkload = useCallback(() => {
-    const memberWidth = workloadMemberHeaderRef.current?.getBoundingClientRect().width ?? 0;
-    const roleWidth = workloadRoleHeaderRef.current?.getBoundingClientRect().width ?? 0;
-
-    if (memberWidth > 0) {
-      setMemberColumnWidth(memberWidth);
-    }
-
-    if (roleWidth > 0) {
-      setRoleColumnWidth(roleWidth);
-    }
-  }, []);
-
-  useEffect(() => {
-    const frameId = window.requestAnimationFrame(() => {
-      syncMembersGeometryFromWorkload();
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-    };
-  }, [syncMembersGeometryFromWorkload, activeTab]);
-
-  useEffect(() => {
-    const table = workloadTableRef.current;
-    if (!table || typeof ResizeObserver === "undefined") {
-      return;
-    }
-
-    const observer = new ResizeObserver(() => {
-      syncMembersGeometryFromWorkload();
-    });
-
-    observer.observe(table);
-    return () => observer.disconnect();
-  }, [syncMembersGeometryFromWorkload]);
-
-  async function submitRoleUpdate(userId: string, previousRole: RoleType, nextRole: RoleType) {
+  async function submitRoleUpdate(
+    userId: string,
+    previousRole: RoleType,
+    nextRole: RoleType,
+  ) {
     if (previousRole === nextRole) {
       return;
     }
@@ -308,7 +304,9 @@ export default function TeamTabsClient({
     <div className="space-y-8">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight text-zinc-950">Team</h1>
+          <h1 className="text-4xl font-bold tracking-tight text-zinc-950">
+            Team
+          </h1>
           <p className="mt-2 text-lg text-slate-500">
             Manage organization members and monitor workload in one place.
           </p>
@@ -320,7 +318,10 @@ export default function TeamTabsClient({
             className="h-12 rounded-lg border-slate-200 bg-white px-5 text-base font-medium text-zinc-950 shadow-sm hover:bg-slate-50"
             onClick={() => setComposeMode("message")}
           >
-            <MessageSquare className="mr-2 h-5 w-5 text-slate-700" strokeWidth={2.1} />
+            <MessageSquare
+              className="mr-2 h-5 w-5 text-slate-700"
+              strokeWidth={2.1}
+            />
             Send Message
           </Button>
           <Button
@@ -348,7 +349,10 @@ export default function TeamTabsClient({
         </p>
       )}
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "members" | "workload")}>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as "members" | "workload")}
+      >
         <TabsList variant="line" className="w-full justify-start">
           <TabsTrigger value="members" className="flex-none px-4">
             Members
@@ -360,73 +364,64 @@ export default function TeamTabsClient({
 
         <TabsContent value="members" className="space-y-6 pt-2">
           <div className="space-y-4">
-            
-
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="relative min-w-0 flex-1">
+              <div className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                <div className="relative min-w-0">
                   <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-              <input
-                value={memberQuery}
-                onChange={(e) => {
-                  setMemberQuery(e.target.value);
-                  setMembersPage(1);
-                }}
-                placeholder="Search by name or email..."
-                className="h-12 w-full rounded-lg border border-slate-200 bg-white pl-12 pr-4 text-base text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-              />
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-              <select
-                value={roleFilter}
-                onChange={(e) => {
-                  setRoleFilter(e.target.value as "all" | RoleType);
-                  setMembersPage(1);
-                }}
-                className="h-12 rounded-lg border border-slate-200 bg-white px-4 text-base text-zinc-950 shadow-sm outline-none hover:border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-              >
-                <option value="all">All roles</option>
-                {roleOptions.map((role) => (
-                  <option key={`filter-${role}`} value={role}>
-                    {role}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={String(membersPageSize)}
-                onChange={(e) => {
-                  setMembersPageSize(Number(e.target.value));
-                  setMembersPage(1);
-                }}
-                className="h-12 rounded-lg border border-slate-200 bg-white px-4 text-base text-zinc-950 shadow-sm outline-none hover:border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-              >
-                <option value="10">10 / page</option>
-                <option value="25">25 / page</option>
-                <option value="50">50 / page</option>
-              </select>
-              {/* <Button type="button" variant="outline" className="h-12 rounded-lg border-slate-200 bg-white px-4 text-base font-medium text-zinc-950 shadow-sm hover:bg-slate-50">
-                <SlidersHorizontal className="mr-2 h-4 w-4" />
-                Filters
-              </Button> */}
-              </div>
+                  <input
+                    value={memberQuery}
+                    onChange={(e) => {
+                      setMemberQuery(e.target.value);
+                      setMembersPage(1);
+                    }}
+                    placeholder="Search by name or email..."
+                    className="h-12 w-full rounded-lg border border-slate-200 bg-white pl-12 pr-4 text-base text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                  <select
+                    value={roleFilter}
+                    onChange={(e) => {
+                      setRoleFilter(e.target.value as "all" | RoleType);
+                      setMembersPage(1);
+                    }}
+                    className="h-12 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-700 shadow-sm outline-none transition hover:border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                  >
+                    <option value="all">All roles</option>
+                    {roleOptions.map((role) => (
+                      <option key={`filter-${role}`} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={String(membersPageSize)}
+                    onChange={(e) => {
+                      setMembersPageSize(Number(e.target.value));
+                      setMembersPage(1);
+                    }}
+                    className="h-12 rounded-lg border border-slate-200 bg-white px-3 text-base text-slate-700 shadow-sm outline-none transition hover:border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                  >
+                    <option value="10">10 / page</option>
+                    <option value="25">25 / page</option>
+                    <option value="50">50 / page</option>
+                  </select>
+                </div>
               </div>
             </div>
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              
               <div className="overflow-x-auto">
-                <table className="w-full min-w-full border-collapse table-fixed">
+                <table className="w-full min-w-[760px] table-fixed border-collapse">
                   <colgroup>
-                    <col style={memberColumnWidth ? { width: `${memberColumnWidth}px` } : undefined} />
-                    <col style={roleColumnWidth ? { width: `${roleColumnWidth}px` } : undefined} />
-                    <col style={{ width: "240px" }} />
+                    <col />
+                    <col className="w-32" />
+                    <col className="w-32" />
                   </colgroup>
                   <thead>
                     <tr className="border-b border-border bg-slate-50/80 text-left text-xs uppercase tracking-wide text-slate-500">
                       <th className="px-5 py-4 font-semibold">Member</th>
 
-                      <th className="px-5 py-4 font-semibold">
-                        Role
-                      </th>
+                      <th className="px-5 py-4 font-semibold">Role</th>
 
                       <th className="px-5 py-4 text-right font-semibold">
                         Actions
@@ -436,96 +431,162 @@ export default function TeamTabsClient({
                   <tbody>
                     {pagedMembers.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        <td
+                          colSpan={3}
+                          className="px-4 py-8 text-center text-sm text-muted-foreground"
+                        >
                           No members found.
                         </td>
                       </tr>
                     )}
 
+                    {pagedMembers.map((member) => {
+                      const isMe = member.user_id === currentUserId;
+                      const effectiveRole = getEffectiveRole(member);
+                      const avatar = getAvatarFallback(member.name);
 
-                  {pagedMembers.map((member) => {
-                    const isMe = member.user_id === currentUserId;
-                    const effectiveRole = getEffectiveRole(member);
-                    const avatar = getAvatarFallback(member.name);
+                      return (
+                        <tr
+                          key={member.user_id}
+                          className={`border-b border-slate-200 last:border-0 transition-colors ${
+                            isMe
+                              ? "bg-violet-50/50 hover:bg-violet-50/80"
+                              : "hover:bg-slate-50/70"
+                          }`}
+                        >
+                          <td className="px-5 py-5">
+                            <Link
+                              href={`/organizations/${organizationId}/employees/${member.user_id}`}
+                              className="flex items-center gap-3 rounded-md transition-colors"
+                            >
+                              {/* Professional Initials Avatar */}
+                              <div
+                                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-white text-sm font-bold shadow-sm ${avatar.gradient}`}
+                              >
+                                {avatar.initials}
+                              </div>
 
-                    return (
-                      <tr 
-                        key={member.user_id} 
-                        className={`border-b border-slate-200 last:border-0 transition-colors ${
-                          isMe ? "bg-violet-50/50 hover:bg-violet-50/80" : "hover:bg-slate-50/70"
-                        }`}
-                      >
-                        <td className="px-5 py-5">
-                          <Link
-                            href={`/organizations/${organizationId}/employees/${member.user_id}`}
-                            className="flex items-center gap-3 rounded-md transition-colors"
-                          >
-                            {/* Professional Initials Avatar */}
-                            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-white text-sm font-bold shadow-sm ${avatar.gradient}`}>
-                              {avatar.initials}
-                            </div>
-                            
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-lg font-semibold text-zinc-950 tracking-tight truncate flex items-center gap-1.5">
-                                {member.name}
-                                {isMe && <span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full font-medium dark:bg-violet-900/50 dark:text-violet-300">You</span>}
-                              </span>
-                              <span className="text-sm text-slate-500 truncate">{member.email ?? member.user_id}</span>
-                            </div>
-                          </Link>
-                        </td>
-                        <td className="px-5 py-5">
-                          <Badge variant="outline" className={`w-fit capitalize shadow-sm font-medium ${roleColorMap[effectiveRole] || roleColorMap.employee}`}>
-                            {effectiveRole}
-                          </Badge>
-                        </td>
-                        <td className="px-5 py-5">
-                          {canManageMembers ? (
-                            <div className="flex items-center justify-end gap-2">
+                              <div className="flex flex-col min-w-0">
+                                <span className="flex items-center gap-1.5 truncate text-sm font-semibold tracking-tight text-zinc-950">
+                                  {member.name}
+                                  {isMe && (
+                                    <span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full font-medium dark:bg-violet-900/50 dark:text-violet-300">
+                                      You
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="truncate text-sm text-slate-500">
+                                  {member.email ?? member.user_id}
+                                </span>
+                              </div>
+                            </Link>
+                          </td>
+                          <td className="px-5 py-5">
+                            {canManageMembers ? (
                               <Select
                                 value={getEffectiveRole(member)}
-                                onValueChange={(value) => onRoleSelect(member, value as RoleType)}
+                                onValueChange={(value) =>
+                                  onRoleSelect(member, value as RoleType)
+                                }
                                 disabled={updatingMemberId === member.user_id}
                               >
-                                <SelectTrigger className="h-9 min-w-36 bg-background text-sm">
-                                  <SelectValue placeholder="Select role" />
+                                <SelectTrigger
+                                  className={`h-9 w-36 border font-medium capitalize shadow-none transition ${
+                                    roleSelectStyles[effectiveRole]
+                                  }`}
+                                >
+                                  <SelectValue />
                                 </SelectTrigger>
+
                                 <SelectContent>
                                   {roleOptions.map((role) => (
-                                    <SelectItem key={`${member.user_id}-${role}`} value={role}>
-                                      <span className="font-medium capitalize">{role}</span>
+                                    <SelectItem key={role} value={role}>
+                                      <span className="capitalize">{role}</span>
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                              <form action={removeMemberAction}>
-                                <input type="hidden" name="organizationId" value={organizationId} />
-                                <input type="hidden" name="userId" value={member.user_id} />
-                                <Button type="submit" size="sm" variant="destructive">
-                                  Remove
-                                </Button>
-                              </form>
-                            </div>
-                          ) : (
-                            <div className="flex justify-end">
-                              <span className="text-sm text-muted-foreground">
-                                Read-only
-                              </span>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className={`capitalize ${
+                                  roleColorMap[effectiveRole]
+                                }`}
+                              >
+                                {effectiveRole}
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="px-5 py-5">
+                            {canManageMembers ? (
+                              <div className="flex items-center justify-end gap-2">
+                                {/* <Select
+                                  value={getEffectiveRole(member)}
+                                  onValueChange={(value) =>
+                                    onRoleSelect(member, value as RoleType)
+                                  }
+                                  disabled={updatingMemberId === member.user_id}
+                                >
+                                  <SelectTrigger className="h-9 w-36 bg-white text-sm font-medium">
+                                    <SelectValue placeholder="Select role" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {roleOptions.map((role) => (
+                                      <SelectItem
+                                        key={`${member.user_id}-${role}`}
+                                        value={role}
+                                      >
+                                        <span className="font-medium capitalize">
+                                          {role}
+                                        </span>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select> */}
+                                <form
+                                  action={removeMemberAction}
+                                  className="flex"
+                                >
+                                  <input
+                                    type="hidden"
+                                    name="organizationId"
+                                    value={organizationId}
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="userId"
+                                    value={member.user_id}
+                                  />
+                                  <Button
+                                    type="submit"
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-9 px-3 text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-700 focus-visible:bg-red-50 focus-visible:text-red-700 focus-visible:ring-red-200"
+                                  >
+                                    Remove
+                                  </Button>
+                                </form>
+                              </div>
+                            ) : (
+                              <div className="flex justify-end">
+                                <span className="text-sm text-muted-foreground">
+                                  Read-only
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             </div>
 
-
             <div className="flex items-center justify-between rounded-b-xl px-3 text-base text-slate-500">
               <p>
-                Showing {pagedMembers.length} of {filteredMembers.length} members
+                Showing {pagedMembers.length} of {filteredMembers.length}{" "}
+                members
               </p>
               <div className="flex items-center gap-2">
                 <Button
@@ -533,7 +594,9 @@ export default function TeamTabsClient({
                   size="sm"
                   variant="outline"
                   disabled={membersPage <= 1}
-                  onClick={() => setMembersPage((prev) => Math.max(1, prev - 1))}
+                  onClick={() =>
+                    setMembersPage((prev) => Math.max(1, prev - 1))
+                  }
                 >
                   Prev
                 </Button>
@@ -545,7 +608,11 @@ export default function TeamTabsClient({
                   size="sm"
                   variant="outline"
                   disabled={safeMembersPage >= totalMemberPages}
-                  onClick={() => setMembersPage((prev) => Math.min(totalMemberPages, prev + 1))}
+                  onClick={() =>
+                    setMembersPage((prev) =>
+                      Math.min(totalMemberPages, prev + 1),
+                    )
+                  }
                 >
                   Next
                 </Button>
@@ -559,53 +626,53 @@ export default function TeamTabsClient({
             <div className="flex flex-col gap-4 p-4 md:flex-row md:items-center">
               <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-            <input
-              value={workloadQuery}
-              onChange={(e) => {
-                setWorkloadQuery(e.target.value);
-                setWorkloadPage(1);
-              }}
-              placeholder="Search by name or email..."
-              className="h-12 w-full rounded-lg border border-slate-200 bg-white pl-12 pr-4 text-base text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-            />
+                <input
+                  value={workloadQuery}
+                  onChange={(e) => {
+                    setWorkloadQuery(e.target.value);
+                    setWorkloadPage(1);
+                  }}
+                  placeholder="Search by name or email..."
+                  className="h-12 w-full rounded-lg border border-slate-200 bg-white pl-12 pr-4 text-base text-slate-900 shadow-sm outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                />
               </div>
-            <select
-              value={workloadRoleFilter}
-              onChange={(e) => {
-                setWorkloadRoleFilter(e.target.value as "all" | RoleType);
-                setWorkloadPage(1);
-              }}
-              className="h-12 rounded-lg border border-slate-200 bg-white px-4 text-base text-zinc-950 shadow-sm outline-none hover:border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-            >
-              <option value="all">All roles</option>
-              {roleOptions.map((role) => (
-                <option key={`workload-filter-${role}`} value={role}>
-                  {role}
-                </option>
-              ))}
-            </select>
-            <select
-              value={String(workloadPageSize)}
-              onChange={(e) => {
-                setWorkloadPageSize(Number(e.target.value));
-                setWorkloadPage(1);
-              }}
-              className="h-12 rounded-lg border border-slate-200 bg-white px-4 text-base text-zinc-950 shadow-sm outline-none hover:border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-            >
-              <option value="10">10 / page</option>
-              <option value="25">25 / page</option>
-              <option value="50">50 / page</option>
-            </select>
+              <select
+                value={workloadRoleFilter}
+                onChange={(e) => {
+                  setWorkloadRoleFilter(e.target.value as "all" | RoleType);
+                  setWorkloadPage(1);
+                }}
+                className="h-12 rounded-lg border border-slate-200 bg-white px-4 text-base text-zinc-950 shadow-sm outline-none hover:border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+              >
+                <option value="all">All roles</option>
+                {roleOptions.map((role) => (
+                  <option key={`workload-filter-${role}`} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={String(workloadPageSize)}
+                onChange={(e) => {
+                  setWorkloadPageSize(Number(e.target.value));
+                  setWorkloadPage(1);
+                }}
+                className="h-12 rounded-lg border border-slate-200 bg-white px-4 text-base text-zinc-950 shadow-sm outline-none hover:border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+              >
+                <option value="10">10 / page</option>
+                <option value="25">25 / page</option>
+                <option value="50">50 / page</option>
+              </select>
             </div>
           </div>
 
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
-              <table ref={workloadTableRef} className="min-w-full border-collapse">
+              <table className="min-w-full border-collapse">
                 <thead>
                   <tr className="border-b border-border bg-slate-50/80 text-left text-xs uppercase tracking-wide text-slate-500">
-                    <th ref={workloadMemberHeaderRef} className="px-5 py-4 font-semibold">Member</th>
-                    <th ref={workloadRoleHeaderRef} className="px-5 py-4 font-semibold">Role</th>
+                    <th className="px-5 py-4 font-semibold">Member</th>
+                    <th className="px-5 py-4 font-semibold">Role</th>
                     <th className="px-5 py-4 font-semibold">Tasks</th>
                     <th className="px-5 py-4 font-semibold">Hours</th>
                     <th className="px-5 py-4 font-semibold">Completion</th>
@@ -614,24 +681,37 @@ export default function TeamTabsClient({
                 <tbody>
                   {pagedWorkload.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                      <td
+                        colSpan={5}
+                        className="px-4 py-8 text-center text-sm text-muted-foreground"
+                      >
                         No workload data found.
                       </td>
                     </tr>
                   )}
 
                   {pagedWorkload.map((member) => {
-                    const pct = completionPct(member.completedTasks, member.totalTasks);
-                    const barColor = pct >= 80 ? "bg-green-500" : pct >= 40 ? "bg-blue-500" : "bg-amber-500";
-                    
+                    const pct = completionPct(
+                      member.completedTasks,
+                      member.totalTasks,
+                    );
+                    const barColor =
+                      pct >= 80
+                        ? "bg-green-500"
+                        : pct >= 40
+                          ? "bg-blue-500"
+                          : "bg-amber-500";
+
                     const isMe = member.user_id === currentUserId;
                     const avatar = getAvatarFallback(member.name);
 
                     return (
-                      <tr 
-                        key={member.user_id} 
+                      <tr
+                        key={member.user_id}
                         className={`border-b border-slate-200 last:border-0 transition-colors ${
-                          isMe ? "bg-violet-50/50 hover:bg-violet-50/80" : "hover:bg-slate-50/70"
+                          isMe
+                            ? "bg-violet-50/50 hover:bg-violet-50/80"
+                            : "hover:bg-slate-50/70"
                         }`}
                       >
                         <td className="px-5 py-5">
@@ -640,28 +720,44 @@ export default function TeamTabsClient({
                             className="flex items-center gap-3 rounded-md transition-colors"
                           >
                             {/* Professional Initials Avatar */}
-                            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-white text-sm font-bold shadow-sm ${avatar.gradient}`}>
+                            <div
+                              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-white text-sm font-bold shadow-sm ${avatar.gradient}`}
+                            >
                               {avatar.initials}
                             </div>
 
                             <div className="flex flex-col min-w-0">
-                              <span className="text-lg font-semibold text-zinc-950 tracking-tight truncate flex items-center gap-1.5">
+                              <span className="flex items-center gap-1.5 truncate text-sm font-semibold tracking-tight text-zinc-950">
                                 {member.name}
-                                {isMe && <span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full font-medium dark:bg-violet-900/50 dark:text-violet-300">You</span>}
+                                {isMe && (
+                                  <span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full font-medium dark:bg-violet-900/50 dark:text-violet-300">
+                                    You
+                                  </span>
+                                )}
                               </span>
-                              <span className="text-sm text-slate-500 truncate">{member.email ?? member.user_id}</span>
+                              <span className="truncate text-sm text-slate-500">
+                                {member.email ?? member.user_id}
+                              </span>
                             </div>
                           </Link>
                         </td>
                         <td className="px-5 py-5">
-                          <Badge variant="outline" className={`w-fit capitalize shadow-sm font-medium ${roleColorMap[member.role] || roleColorMap.employee}`}>
+                          <Badge
+                            variant="outline"
+                            className={`w-fit capitalize shadow-sm font-medium ${roleColorMap[member.role] || roleColorMap.employee}`}
+                          >
                             {member.role}
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-sm text-muted-foreground">
-                          <span className="font-medium text-foreground">{member.completedTasks}</span> / {member.totalTasks}
+                          <span className="font-medium text-foreground">
+                            {member.completedTasks}
+                          </span>{" "}
+                          / {member.totalTasks}
                         </td>
-                        <td className="px-4 py-3 text-sm text-muted-foreground">{member.allocatedHours}</td>
+                        <td className="px-4 py-3 text-sm text-muted-foreground">
+                          {member.allocatedHours}
+                        </td>
                         <td className="px-5 py-5">
                           <div className="space-y-1">
                             <div className="flex justify-between text-sm text-slate-500">
@@ -686,7 +782,8 @@ export default function TeamTabsClient({
 
           <div className="flex items-center justify-between rounded-b-xl px-3 text-base text-slate-500">
             <p>
-              Showing {pagedWorkload.length} of {filteredWorkload.length} members
+              Showing {pagedWorkload.length} of {filteredWorkload.length}{" "}
+              members
             </p>
             <div className="flex items-center gap-2">
               <Button
@@ -706,7 +803,11 @@ export default function TeamTabsClient({
                 size="sm"
                 variant="outline"
                 disabled={safeWorkloadPage >= totalWorkloadPages}
-                onClick={() => setWorkloadPage((prev) => Math.min(totalWorkloadPages, prev + 1))}
+                onClick={() =>
+                  setWorkloadPage((prev) =>
+                    Math.min(totalWorkloadPages, prev + 1),
+                  )
+                }
               >
                 Next
               </Button>
@@ -727,7 +828,8 @@ export default function TeamTabsClient({
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm critical role change</AlertDialogTitle>
             <AlertDialogDescription>
-              Changing ownership impacts organization control. Are you sure you want to continue?
+              Changing ownership impacts organization control. Are you sure you
+              want to continue?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -750,7 +852,10 @@ export default function TeamTabsClient({
       </AlertDialog>
 
       {composeMode && (
-        <ComposeMessagePopup fixedType={composeMode} onClose={() => setComposeMode(null)} />
+        <ComposeMessagePopup
+          fixedType={composeMode}
+          onClose={() => setComposeMode(null)}
+        />
       )}
     </div>
   );
