@@ -84,7 +84,7 @@ function DashboardShell({ children }: DashboardShellProps) {
             sidebarCollapsed={sidebarCollapsed}
             onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
           />
-          <main className="relative mx-auto flex-1 w-full max-w-5xl overflow-y-auto px-6 py-12 lg:px-12">
+          <main className="relative flex-1 w-full overflow-y-auto px-6 py-12 lg:px-12">
             {children}
           </main>
         </div>

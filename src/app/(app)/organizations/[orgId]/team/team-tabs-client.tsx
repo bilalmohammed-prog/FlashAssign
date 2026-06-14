@@ -48,6 +48,7 @@ export type TeamWorkloadRow = {
 };
 
 type TeamTabsClientProps = {
+  currentUserId: string;
   organizationId: string;
   selectedTab: "members" | "workload";
   status?: "success" | "error";
@@ -71,8 +72,36 @@ function completionPct(done: number, total: number): number {
   if (total === 0) return 0;
   return Math.round((done / total) * 100);
 }
+// INSERT THESE NEW UTILITIES DIRECTLY ABOVE YOUR MAIN "export default function TeamTabsClient" BLOCK:
 
+function getAvatarFallback(name: string) {
+  const initials = name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const gradients = [
+    "from-purple-500 to-indigo-500",
+    "from-blue-500 to-cyan-500",
+    "from-emerald-500 to-teal-500",
+    "from-amber-500 to-orange-500",
+    "from-rose-500 to-pink-500",
+  ];
+  const index = name.length % gradients.length;
+  return { initials, gradient: gradients[index] };
+}
+
+const roleColorMap: Record<string, string> = {
+  owner: "border-rose-200 bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50",
+  admin: "border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/50",
+  manager: "border-blue-200 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/50",
+  employee: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
+  viewer: "border-zinc-200 bg-zinc-50 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
+};
 export default function TeamTabsClient({
+  currentUserId,
   organizationId,
   selectedTab,
   status,
@@ -360,7 +389,7 @@ export default function TeamTabsClient({
 
             <div className="overflow-hidden rounded-xl border border-border bg-card">
               <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse">
+                <table className="w-full min-w-full border-collapse table-fixed">
                   <colgroup>
                     <col style={memberColumnWidth ? { width: `${memberColumnWidth}px` } : undefined} />
                     <col style={roleColumnWidth ? { width: `${roleColumnWidth}px` } : undefined} />
@@ -386,20 +415,41 @@ export default function TeamTabsClient({
                       </tr>
                     )}
 
-                    {pagedMembers.map((member) => (
-                      <tr key={member.user_id} className="border-b border-border last:border-0">
+
+                  {pagedMembers.map((member) => {
+                    const isMe = member.user_id === currentUserId;
+                    const effectiveRole = getEffectiveRole(member);
+                    const avatar = getAvatarFallback(member.name);
+
+                    return (
+                      <tr 
+                        key={member.user_id} 
+                        className={`border-b border-border last:border-0 transition-colors ${
+                          isMe ? "bg-violet-50/40 hover:bg-violet-50/70 dark:bg-violet-950/10" : "hover:bg-muted/40"
+                        }`}
+                      >
                         <td className="px-4 py-3">
                           <Link
                             href={`/organizations/${organizationId}/employees/${member.user_id}`}
-                            className="block rounded-md transition-colors hover:text-zinc-700"
+                            className="flex items-center gap-3 rounded-md transition-colors"
                           >
-                            <p className="font-medium text-foreground">{member.name}</p>
-                            <p className="text-sm text-muted-foreground">{member.email ?? member.user_id}</p>
+                            {/* Professional Initials Avatar */}
+                            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-white text-xs font-semibold shadow-sm ${avatar.gradient}`}>
+                              {avatar.initials}
+                            </div>
+                            
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-semibold text-foreground tracking-tight truncate flex items-center gap-1.5">
+                                {member.name}
+                                {isMe && <span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full font-medium dark:bg-violet-900/50 dark:text-violet-300">You</span>}
+                              </span>
+                              <span className="text-xs text-muted-foreground truncate">{member.email ?? member.user_id}</span>
+                            </div>
                           </Link>
                         </td>
                         <td className="px-4 py-3">
-                          <Badge variant="outline" className={`w-fit ${roleBadgeClass(getEffectiveRole(member))}`}>
-                            {getEffectiveRole(member)}
+                          <Badge variant="outline" className={`w-fit capitalize shadow-sm font-medium ${roleColorMap[effectiveRole] || roleColorMap.employee}`}>
+                            {effectiveRole}
                           </Badge>
                         </td>
                         <td className="px-4 py-3" colSpan={3}>
@@ -415,13 +465,8 @@ export default function TeamTabsClient({
                                 </SelectTrigger>
                                 <SelectContent>
                                   {roleOptions.map((role) => (
-                                    <SelectItem
-                                      key={`${member.user_id}-${role}`}
-                                      value={role}
-                                      
-                                    >
+                                    <SelectItem key={`${member.user_id}-${role}`} value={role}>
                                       <span className="font-medium capitalize">{role}</span>
-                                      
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -439,7 +484,8 @@ export default function TeamTabsClient({
                           )}
                         </td>
                       </tr>
-                    ))}
+                    );
+                  })}
                   </tbody>
                 </table>
               </div>
@@ -539,22 +585,39 @@ export default function TeamTabsClient({
 
                   {pagedWorkload.map((member) => {
                     const pct = completionPct(member.completedTasks, member.totalTasks);
-                    const barColor =
-                      pct >= 80 ? "bg-green-500" : pct >= 40 ? "bg-blue-500" : "bg-amber-500";
+                    const barColor = pct >= 80 ? "bg-green-500" : pct >= 40 ? "bg-blue-500" : "bg-amber-500";
+                    
+                    const isMe = member.user_id === currentUserId;
+                    const avatar = getAvatarFallback(member.name);
 
                     return (
-                      <tr key={member.user_id} className="border-b border-border last:border-0">
+                      <tr 
+                        key={member.user_id} 
+                        className={`border-b border-border last:border-0 transition-colors ${
+                          isMe ? "bg-violet-50/40 hover:bg-violet-50/70 dark:bg-violet-950/10" : "hover:bg-muted/40"
+                        }`}
+                      >
                         <td className="px-4 py-3">
                           <Link
                             href={`/organizations/${organizationId}/employees/${member.user_id}`}
-                            className="block rounded-md transition-colors hover:text-zinc-700"
+                            className="flex items-center gap-3 rounded-md transition-colors"
                           >
-                            <p className="font-medium text-foreground">{member.name}</p>
-                            <p className="text-sm text-muted-foreground">{member.email ?? member.user_id}</p>
+                            {/* Professional Initials Avatar */}
+                            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-white text-xs font-semibold shadow-sm ${avatar.gradient}`}>
+                              {avatar.initials}
+                            </div>
+
+                            <div className="flex flex-col min-w-0">
+                              <span className="font-semibold text-foreground tracking-tight truncate flex items-center gap-1.5">
+                                {member.name}
+                                {isMe && <span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full font-medium dark:bg-violet-900/50 dark:text-violet-300">You</span>}
+                              </span>
+                              <span className="text-xs text-muted-foreground truncate">{member.email ?? member.user_id}</span>
+                            </div>
                           </Link>
                         </td>
                         <td className="px-4 py-3">
-                          <Badge variant="outline" className="w-fit">
+                          <Badge variant="outline" className={`w-fit capitalize shadow-sm font-medium ${roleColorMap[member.role] || roleColorMap.employee}`}>
                             {member.role}
                           </Badge>
                         </td>

@@ -337,8 +337,9 @@ export default async function TeamPage({
   }
 
   return (
-    <div className="w-full max-w-6xl p-6">
+    <div className="w-full mx-auto px-6 py-8 md:px-8">
       <TeamTabsClient
+        currentUserId={ctx.userId}
         organizationId={ctx.organizationId}
         selectedTab={query.tab === "workload" ? "workload" : "members"}
         status={query.status}
