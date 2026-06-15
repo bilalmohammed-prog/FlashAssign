@@ -15,11 +15,36 @@ import ProfileMenu from "@/components/ProfileMenu";
 import OrgSwitcher from "@/components/layout/OrgSwitcher";
 
 const NAV_ITEMS = [
-  { label: "Team", href: "team", icon: Users },
-  { label: "Projects", href: "projects", icon: FolderKanban },
-  { label: "My Tasks", href: "my-tasks", icon: ClipboardList },
-  { label: "Analytics", href: "analytics", icon: BarChart3 },
-  { label: "Inbox", href: "inbox", icon: Inbox },
+  {
+    label: "Team",
+    href: "team",
+    icon: Users,
+    matchRoutes: ["team", "employees"],
+  },
+  {
+    label: "Projects",
+    href: "projects",
+    icon: FolderKanban,
+    matchRoutes: ["projects"],
+  },
+  {
+    label: "My Tasks",
+    href: "my-tasks",
+    icon: ClipboardList,
+    matchRoutes: ["my-tasks"],
+  },
+  {
+    label: "Analytics",
+    href: "analytics",
+    icon: BarChart3,
+    matchRoutes: ["analytics"],
+  },
+  {
+    label: "Inbox",
+    href: "inbox",
+    icon: Inbox,
+    matchRoutes: ["inbox"],
+  },
 ] as const;
 
 type LeftSideBarProps = {
@@ -64,9 +89,12 @@ export default function LeftSideBar({ collapsed, onToggle }: LeftSideBarProps) {
         <OrgSwitcher collapsed={collapsed} />
 
         <nav className="mt-8 space-y-1">
-          {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
+          {NAV_ITEMS.map(({ label, href, icon: Icon, matchRoutes }) => {
             const fullHref = `/organizations/${orgId}/${href}`;
-            const isActive = pathname.startsWith(fullHref);
+
+            const isActive = matchRoutes.some(
+              (route) => pathname.startsWith(`/organizations/${orgId}/${route}`)
+            );
 
             return (
               <Link
