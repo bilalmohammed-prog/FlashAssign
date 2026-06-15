@@ -37,7 +37,7 @@ const loggedIn = !!user;
           <Zap className="mx-auto h-8 w-8" />
           <h1 className="mt-6 text-3xl font-bold">Invalid invitation</h1>
           <p className="mt-3 text-zinc-500">
-            This invitation doesn't exist or has been removed.
+            This invitation doesn&apos;t exist or has been removed.
           </p>
           <Link
             href="/auth/login"
@@ -92,7 +92,7 @@ const loggedIn = !!user;
           Invitation declined
         </h1>
         <p className="mt-3 text-zinc-500">
-          You've declined this invitation. If this was a mistake, ask the organization owner to send you a new invitation.
+          You&apos;ve declined this invitation. If this was a mistake, ask the organization owner to send you a new invitation.
         </p>
       </div>
     </main>
@@ -109,7 +109,7 @@ const loggedIn = !!user;
           </div>
 
           <h1 className="mt-6 text-4xl font-bold tracking-tight">
-            You've been invited
+            You&apos;ve been invited
           </h1>
 
           <p className="mt-3 text-zinc-500 text-lg">
