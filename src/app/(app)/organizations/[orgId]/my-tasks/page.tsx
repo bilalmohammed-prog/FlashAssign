@@ -6,7 +6,6 @@ import { Calendar, ClipboardList, ArrowUpDown } from "lucide-react";
 import { listMyTasks } from "@/actions/task/listMyTasks";
 import { updateTask } from "@/actions/task/update";
 import { useOrgRole } from "@/hooks/useOrgRole";
-import { usePageHeader } from "@/components/layout/PageHeaderContext";
 import type { Enums } from "@/lib/types/database";
 import type { MyTaskListItem } from "@/services/task/myTasks.service";
 import { Button } from "@/components/ui/button";
@@ -115,7 +114,6 @@ export default function MyTasksPage() {
   const { orgId } = useParams<{ orgId: string }>();
   const role = useOrgRole();
   const canUpdateStatus = role !== null;
-  const { setPageHeader } = usePageHeader();
 
   const hydrationStartRef = useRef<number | null>(null);
   const renderCountRef = useRef(0);
@@ -276,69 +274,63 @@ export default function MyTasksPage() {
     }
   }
 
-  useEffect(() => {
-    setPageHeader(
-      <div className="flex w-full flex-wrap items-center justify-between gap-3 md:flex-nowrap">
-        <div className="min-w-0">
-          <h1 className="truncate text-lg font-semibold tracking-tight text-zinc-900">My Tasks</h1>
-          <p className="text-xs text-zinc-500">All tasks assigned to you across projects</p>
+  const myTasksToolbar = (
+    <div className="flex w-full flex-wrap items-center justify-between gap-3 md:flex-nowrap">
+      <div className="flex flex-1 flex-wrap items-center justify-start gap-2 md:flex-nowrap">
+        <div className="relative w-full max-w-[220px]">
+          <input
+            value={taskQuery}
+            onChange={(e) => setTaskQuery(e.target.value)}
+            placeholder="Search tasks"
+            className="h-8 w-full rounded-md border border-zinc-200 bg-white px-3 text-xs text-zinc-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+          />
         </div>
-
-        <div className="flex flex-1 flex-wrap items-center justify-end gap-2 md:flex-nowrap">
-          <div className="relative w-full max-w-[220px]">
-            <input
-              value={taskQuery}
-              onChange={(e) => setTaskQuery(e.target.value)}
-              placeholder="Search tasks"
-              className="h-8 w-full rounded-md border border-zinc-200 bg-white px-3 text-xs text-zinc-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-            className="h-8 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="all">All statuses</option>
-            <option value="todo">To Do</option>
-            <option value="in_progress">In Progress</option>
-            <option value="blocked">Blocked</option>
-            <option value="done">Completed</option>
-          </select>
-          <select
-            value={projectFilter}
-            onChange={(e) => setProjectFilter(e.target.value)}
-            className="h-8 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="all">All Projects</option>
-            {projectOptions.map((project) => (
-              <option
-                key={project.id ?? "no-workspace"}
-                value={project.id ?? "__NO_WORKSPACE__"}
-              >
-                {project.name}
-              </option>
-            ))}
-          </select>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setDueSort((prev) => (prev === "asc" ? "desc" : "asc"))}
-            className="h-8 shrink-0 border-zinc-200 px-2.5 text-xs text-zinc-700"
-          >
-            <ArrowUpDown className="mr-2 h-4 w-4" />
-            {dueSort === "asc" ? "Earliest" : "Latest"}
-          </Button>
-        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+          className="h-8 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="all">All statuses</option>
+          <option value="todo">To Do</option>
+          <option value="in_progress">In Progress</option>
+          <option value="blocked">Blocked</option>
+          <option value="done">Completed</option>
+        </select>
+        <select
+          value={projectFilter}
+          onChange={(e) => setProjectFilter(e.target.value)}
+          className="h-8 rounded-md border border-zinc-200 bg-white px-2.5 text-xs text-zinc-700 outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="all">All Projects</option>
+          {projectOptions.map((project) => (
+            <option key={project.id ?? "no-workspace"} value={project.id ?? "__NO_WORKSPACE__"}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setDueSort((prev) => (prev === "asc" ? "desc" : "asc"))}
+          className="h-8 shrink-0 border-zinc-200 px-2.5 text-xs text-zinc-700"
+        >
+          <ArrowUpDown className="mr-2 h-4 w-4" />
+          {dueSort === "asc" ? "Earliest" : "Latest"}
+        </Button>
       </div>
-    );
-
-    return () => {
-      setPageHeader(null);
-    };
-  }, [dueSort, projectFilter, projectOptions, setPageHeader, statusFilter, taskQuery]);
+    </div>
+  );
 
   return (
     <div className="flex w-full max-w-6xl flex-col gap-6 pb-12">
+      <div className="space-y-2">
+        <h1 className="text-[2rem] leading-none font-medium tracking-tight text-foreground">My Tasks</h1>
+        <p className="max-w-lg text-[15px] text-muted-foreground">All tasks assigned to you across projects.</p>
+      </div>
+
+      <div className="sticky top-0 z-10 rounded-xl border border-zinc-200/80 bg-white p-4 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)]">
+        {myTasksToolbar}
+      </div>
       <div className="flex flex-wrap gap-2 rounded-xl border border-zinc-200/80 bg-white p-4 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)]">
         <div className="rounded-lg border border-zinc-200/70 bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
           <span className="font-semibold text-zinc-900">Total:</span> {summary.total}

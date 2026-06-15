@@ -4,6 +4,7 @@ import { fail, ok } from "@/lib/api/response";
 import { authorize } from "@/lib/auth/authorization";
 import { requireTenantContext } from "@/lib/auth/tenant-context";
 import { uuidSchema } from "@/lib/validation/common";
+import { sendInviteEmail } from "@/lib/email/sendInviteEmail";
 
 const sendInviteSchema = z.object({
   organizationId: uuidSchema.optional(),
@@ -39,8 +40,15 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (error) {
-      throw error;
-    }
+    throw error;
+}
+
+      await sendInviteEmail({
+          email: payload.inviteEmail,
+          token,
+          organizationId: tenant.organizationId,
+          content: payload.content,
+      });
 
     return ok(
       {
