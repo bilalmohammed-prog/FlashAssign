@@ -100,7 +100,7 @@ function getAnchoredPopoverPosition(triggerRect: DOMRect, panelWidth: number, pa
 }
 
 const desktopProjectsTableGrid =
-  "md:grid-cols-[minmax(0,2fr)_120px_120px_140px_120px_48px]";
+  "md:grid-cols-[minmax(0,2fr)_120px_120px_140px_120px_120px_48px]";
 
 // POSSIBLE LARGE CLIENT COMPONENT
 export default function ProjectsClientPage({ orgId, initialProjects }: ProjectsClientPageProps) {
@@ -129,12 +129,14 @@ export default function ProjectsClientPage({ orgId, initialProjects }: ProjectsC
   const [loadingMore, setLoadingMore] = useState(false);
   const [savingProjectId, setSavingProjectId] = useState<string | null>(null);
   const [openDuePopoverId, setOpenDuePopoverId] = useState<string | null>(null);
+  const [openStartPopoverId, setOpenStartPopoverId] = useState<string | null>(null);
   const [actionsMenu, setActionsMenu] = useState<ProjectActionMenuState | null>(null);
   const [renameCard, setRenameCard] = useState<RenameProjectState | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const renameCardRef = useRef<HTMLDivElement | null>(null);
   const endDateDraftRef = useRef<Record<string, string | null>>({});
+  const startDateDraftRef = useRef<Record<string, string | null>>({});
   const requestIdRef = useRef(0);
   const firstSearchRef = useRef(true);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -524,6 +526,7 @@ useEffect(() => {
               <div className="whitespace-nowrap">Members</div>
               <div className="whitespace-nowrap">Status</div>
               <div className="whitespace-nowrap">Progress</div>
+              <div className="whitespace-nowrap">Start Date</div>
               <div className="whitespace-nowrap">Due Date</div>
               <div aria-hidden="true" />
             </div>
@@ -626,7 +629,55 @@ useEffect(() => {
                       </div>
                       <span className="whitespace-nowrap text-xs text-zinc-500">{progressText}</span>
                     </div>
+                    <div className="hidden min-w-0 items-center text-sm text-zinc-500 md:flex">
+                      <div className="relative">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (openStartPopoverId !== project.id) {
+                              startDateDraftRef.current[project.id] = project.startDate ?? null;
+                            }
+                            setOpenStartPopoverId((id) => (id === project.id ? null : project.id));
+                          }}
+                          className="flex items-center gap-2 whitespace-nowrap text-sm font-medium text-zinc-600"
+                        >
+                          <span>{project.startDate ? formatDate(project.startDate) : "No start date"}</span>
+                        </button>
 
+                        {openStartPopoverId === project.id && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute right-0 z-50 mt-2 w-44 rounded-md border bg-white p-2 shadow"
+                          >
+                            <input
+                              type="date"
+                              autoFocus
+                              value={project.startDate ?? ""}
+                              onChange={(e) => {
+                                const val = e.target.value || null;
+                                setProjects((prev) => prev.map((item) => (item.id === project.id ? { ...item, startDate: val } : item)));
+                              }}
+                              onBlur={async (e) => {
+                                const val = e.currentTarget.value || null;
+                                const previous = startDateDraftRef.current[project.id] ?? null;
+                                setSavingProjectId(project.id);
+                                try {
+                                  await updateProjectAction(project.id, { startDate: val });
+                                } catch {
+                                  addToastRef.current("Failed to update start date", "error");
+                                  setProjects((prev) => prev.map((item) => (item.id === project.id ? { ...item, startDate: previous } : item)));
+                                } finally {
+                                  setSavingProjectId(null);
+                                  setOpenStartPopoverId(null);
+                                }
+                              }}
+                              className="w-full rounded-md border px-2 py-1 text-sm outline-none"
+                            />
+                            {savingProjectId === project.id && <div className="mt-1 text-xs text-zinc-500">Saving...</div>}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     <div className="hidden min-w-0 items-center text-sm text-zinc-500 md:flex">
                       <div className="relative">
                         <button
