@@ -21,6 +21,9 @@ export default function SignInToAcceptButton({
       provider: "google",
       options: {
         redirectTo,
+        queryParams: {
+        prompt: "select_account",
+      },
       },
     });
 
