@@ -7,7 +7,6 @@ import {
   ChevronLeft,
   ClipboardList,
   FolderKanban,
-  Inbox,
   Users,
   Zap,
 } from "lucide-react";
@@ -39,12 +38,7 @@ const NAV_ITEMS = [
     icon: BarChart3,
     matchRoutes: ["analytics"],
   },
-  {
-    label: "Inbox",
-    href: "inbox",
-    icon: Inbox,
-    matchRoutes: ["inbox"],
-  },
+  
 ] as const;
 
 type LeftSideBarProps = {
