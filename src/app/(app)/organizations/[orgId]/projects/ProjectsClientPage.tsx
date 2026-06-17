@@ -10,7 +10,6 @@ import { listProjectsWithMetaAction, type ProjectWithMeta } from "@/actions/proj
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { deleteProject } from "@/actions/project/deleteProject";
-import { usePageHeader } from "@/components/layout/PageHeaderContext";
 import { useToast } from "@/components/providers/toast";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -107,7 +106,6 @@ const desktopProjectsTableGrid =
 export default function ProjectsClientPage({ orgId, initialProjects }: ProjectsClientPageProps) {
   const router = useRouter();
   const { addToast } = useToast();
-  const { setPageHeader } = usePageHeader();
   const role = useOrgRole();
   const canManage =
     role && isAppRole(role) ? getWorkspaceCapabilities(toAppRole(role)).canManageProjects : false;
@@ -133,9 +131,25 @@ export default function ProjectsClientPage({ orgId, initialProjects }: ProjectsC
   const [openDuePopoverId, setOpenDuePopoverId] = useState<string | null>(null);
   const [actionsMenu, setActionsMenu] = useState<ProjectActionMenuState | null>(null);
   const [renameCard, setRenameCard] = useState<RenameProjectState | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const renameCardRef = useRef<HTMLDivElement | null>(null);
   const endDateDraftRef = useRef<Record<string, string | null>>({});
+  const requestIdRef = useRef(0);
+  const firstSearchRef = useRef(true);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const loadingMoreRef = useRef(false);
+
+useEffect(() => {
+  if (searchQuery === debouncedSearch) return;
+
+  const timer = setTimeout(() => {
+    setDebouncedSearch(searchQuery);
+  }, 300);
+
+  return () => clearTimeout(timer);
+}, [searchQuery, debouncedSearch]);
+  
 
   const PAGE_SIZE = 12;
   const projectsCountRef = useRef(projects.length);
@@ -165,36 +179,90 @@ export default function ProjectsClientPage({ orgId, initialProjects }: ProjectsC
   }, [loadingMore, projects.length, searchQuery.length, statusFilter]);
 
   const loadMoreProjects = useCallback(async () => {
-    if (!orgId || loadingMore) return;
+  if (!orgId || loadingMoreRef.current) return;
+
+  try {
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+
+    const currentLength = projectsCountRef.current;
+    const data = await listProjectsWithMetaAction({
+      organizationId: orgId,
+      pageSize: PAGE_SIZE,
+      pageOffset: currentLength,
+      search: debouncedSearch,
+    });
+
+    setProjects((prev) => {
+      const merged = [...prev, ...data];
+      return Array.from(new Map(merged.map((p) => [p.id, p])).values());
+    });
+    setHasMore(data.length === PAGE_SIZE);
+  } catch (err) {
+    console.error("Load projects failed:", err);
+    addToastRef.current("Failed to load projects", "error");
+  } finally {
+    loadingMoreRef.current = false;
+    setLoadingMore(false);
+  }
+}, [orgId, debouncedSearch]); // loadingMore removed
+  const searchProjects = useCallback(
+  async (query: string) => {
+    if (!orgId) return;
+    console.log("[SEARCH]", query);
+    const requestId = ++requestIdRef.current;
 
     try {
-      setLoadingMore(true);
-
-      const currentLength = projectsCountRef.current;
-      const fetchStart = performance.now();
       const data = await listProjectsWithMetaAction({
         organizationId: orgId,
         pageSize: PAGE_SIZE,
-        pageOffset: currentLength,
+        pageOffset: 0,
+        search: query,
       });
+      if (requestId !== requestIdRef.current) {
+            return;
+        }
 
-      console.info(
-        `[perf] projects loadMore listWithMeta ${(performance.now() - fetchStart).toFixed(1)}ms`
-      );
-
-      setProjects((prev) => {
-        const merged = [...prev, ...data];
-        return Array.from(new Map(merged.map((project) => [project.id, project])).values());
-      });
+      setProjects(data);
       setHasMore(data.length === PAGE_SIZE);
     } catch (err) {
-      console.error("Load projects failed:", err);
-      addToastRef.current("Failed to load projects", "error");
-    } finally {
-      setLoadingMore(false);
+      console.error(err);
     }
-  }, [orgId, loadingMore]);
+  },
+  [orgId]
+);
 
+useEffect(() => {
+  if (firstSearchRef.current) {
+    firstSearchRef.current = false;
+    return;
+  }
+
+  void searchProjects(debouncedSearch);
+}, [debouncedSearch, searchProjects]);
+useEffect(() => {
+  if (!hasMore || loadingMore) return;
+
+  const element = loadMoreRef.current;
+  if (!element) return;
+
+  const observer = new IntersectionObserver(
+    ([entry]) => {
+      if (!entry.isIntersecting) return;
+
+      observer.unobserve(entry.target);
+
+      void loadMoreProjects();
+    },
+    {
+      rootMargin: "300px",
+    }
+  );
+
+  observer.observe(element);
+
+  return () => observer.disconnect();
+}, [hasMore, loadingMore, loadMoreProjects]);
   async function handleCreate() {
     if (!name.trim()) return;
 
@@ -354,77 +422,58 @@ export default function ProjectsClientPage({ orgId, initialProjects }: ProjectsC
     }
   }
 
-  const pageHeader = useMemo(
-    () => (
-      <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="relative w-full sm:max-w-md">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-            <Input
-              placeholder="Search projects"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-9 border-zinc-200 bg-white pl-9 text-sm text-zinc-700 placeholder:text-zinc-400 focus-visible:ring-2 focus-visible:ring-indigo-500"
-            />
-          </div>
-
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as "all" | ProjectStatus)}
-            className="h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-44"
-          >
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="paused">Paused</option>
-            <option value="archived">Archived</option>
-          </select>
+  const projectsToolbar = (
+    <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative w-full sm:max-w-md">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+          <Input
+            placeholder="Search projects"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-9 border-zinc-200 bg-white pl-9 text-sm text-zinc-700 placeholder:text-zinc-400 focus-visible:ring-2 focus-visible:ring-indigo-500"
+          />
         </div>
 
-        {canManage && (
-          <Button
-            onClick={() => setShowCreate(true)}
-            className="h-9 shrink-0 rounded-lg border border-indigo-500 bg-indigo-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-600"
-          >
-            <Plus className="mr-2 h-4 w-4 opacity-90" />
-            New Project
-          </Button>
-        )}
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as "all" | ProjectStatus)}
+          className="h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-44"
+        >
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="paused">Paused</option>
+          <option value="archived">Archived</option>
+        </select>
       </div>
-    ),
-    [canManage, searchQuery, statusFilter]
+
+      {canManage && (
+        <Button
+          onClick={() => setShowCreate(true)}
+          className="h-9 shrink-0 rounded-lg border border-indigo-500 bg-indigo-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-600"
+        >
+          <Plus className="mr-2 h-4 w-4 opacity-90" />
+          New Project
+        </Button>
+      )}
+    </div>
   );
 
-  useEffect(() => {
-    setPageHeader(pageHeader);
-
-    return () => {
-      setPageHeader(null);
-    };
-  }, [pageHeader, setPageHeader]);
-
   // POSSIBLE RERENDER HOTSPOT
-  const filteredProjects = useMemo(() => {
-    const query = searchQuery.toLowerCase().trim();
-    return projects.filter((project) => {
-      const matchesSearch = project.name.toLowerCase().includes(query);
-      const matchesStatus = statusFilter === "all" || project.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [projects, searchQuery, statusFilter]);
+  const filteredProjects = projects;
 
-  useEffect(() => {
-    console.time("[perf] projects filter compute");
-    const query = searchQuery.toLowerCase().trim();
-    projects.filter((project) => {
-      const matchesSearch = project.name.toLowerCase().includes(query);
-      const matchesStatus = statusFilter === "all" || project.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-    console.timeEnd("[perf] projects filter compute");
-  }, [projects, searchQuery, statusFilter]);
 
   return (
     <div className="flex w-full flex-col gap-4 pb-12">
+      <div className="space-y-2">
+        <h1 className="text-[2rem] leading-none font-medium tracking-tight text-foreground">Projects</h1>
+        <p className="max-w-lg text-[15px] text-muted-foreground">Manage projects, status, and workspace members.</p>
+      </div>
+
+      <div className="rounded-xl border border-zinc-200/80 bg-white p-4 shadow-[0_1px_3px_0_rgba(0,0,0,0.02)]">
+        {projectsToolbar}
+      </div>
+
       {loading ? (
         <div className="w-full overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
           <div className="border-b border-zinc-200/80 bg-zinc-50/80 px-6 py-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
@@ -651,7 +700,9 @@ export default function ProjectsClientPage({ orgId, initialProjects }: ProjectsC
                   </div>
                 );
               })}
+              
             </div>
+            <div ref={loadMoreRef} className="h-1" />
           </div>
         </div>
       )}
@@ -752,17 +803,7 @@ export default function ProjectsClientPage({ orgId, initialProjects }: ProjectsC
         document.body
       )}
 
-      {hasMore && !loading && (
-        <div className="flex justify-center pt-2">
-          <button
-            onClick={() => loadMoreProjects()}
-            disabled={loadingMore}
-            className="rounded-md border border-zinc-200 px-4 py-2 text-sm transition-colors hover:bg-zinc-50 disabled:opacity-50"
-          >
-            {loadingMore ? "Loading..." : "Load more"}
-          </button>
-        </div>
-      )}
+      
 
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">

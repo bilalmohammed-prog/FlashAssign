@@ -17,6 +17,7 @@ type ListProjectsWithMetaParams = {
   organizationId?: string | null;
   pageSize?: number;
   pageOffset?: number;
+  search?: string;   // optional
 };
 
 type ProjectWithMetaRow = {
@@ -36,11 +37,13 @@ export async function listProjectsWithMetaAction(
   const ctx = await requireOrgContext({ organizationId: params.organizationId ?? undefined });
   const pageSize = params.pageSize ?? 12;
   const pageOffset = params.pageOffset ?? 0;
+  const search = params.search?.trim() || "";
 
   const { data, error } = await ctx.supabase.rpc("list_projects_with_meta", {
     org_uuid: ctx.organizationId,
     page_size: pageSize,
     page_offset: pageOffset,
+    search_query: search,
   });
 
   if (error) {
