@@ -25,6 +25,7 @@ import {
   ArrowDown,
   ArrowUpDown,
   AlertCircle,
+  ArrowRight,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { listOrgMembers } from "@/actions/organization/listOrgMembers";
@@ -436,20 +437,20 @@ export default function ProjectsClientPage({ orgId, initialProjects, initialTota
   const projectsToolbar = (
     <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
       <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative w-full sm:max-w-md">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+        <div className="relative w-full flex-1 max-w-xl">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-900" />
           <Input
             placeholder="Search projects"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-9 border-zinc-200 bg-white pl-9 text-sm text-zinc-700 placeholder:text-zinc-400 focus-visible:ring-2 focus-visible:ring-indigo-500"
+            className="h-9 border-zinc-200 bg-white pl-9 text-sm text-zinc-700 placeholder:text-zinc-500 focus-visible:ring-2 focus-visible:ring-indigo-500 border-zinc-300 shadow-sm"
           />
         </div>
 
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as "all" | ProjectStatus)}
-          className="h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-44"
+          className="h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-44 border-zinc-300 shadow-sm"
         >
           <option value="all">All statuses</option>
           <option value="active">Active</option>
@@ -462,15 +463,15 @@ export default function ProjectsClientPage({ orgId, initialProjects, initialTota
             type="date"
             value={startDateFilter}
             onChange={(e) => setStartDateFilter(e.target.value)}
-            className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+            className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 border-zinc-300 shadow-sm"
             title="Start Date"
           />
-          <span className="text-sm text-zinc-400">→</span>
+          <ArrowRight className="h-4 w-4 text-zinc-400" />
           <input
             type="date"
             value={dueDateFilter}
             onChange={(e) => setDueDateFilter(e.target.value)}
-            className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+            className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 border-zinc-300 shadow-sm"
             title="Due Date"
           />
         </div>
@@ -479,7 +480,7 @@ export default function ProjectsClientPage({ orgId, initialProjects, initialTota
       {canManage && (
         <Button
           onClick={() => setShowCreate(true)}
-          className="h-9 shrink-0 rounded-lg border border-indigo-500 bg-indigo-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-600"
+          className="h-9 shrink-0 rounded-lg border border-indigo-500 bg-indigo-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-500/90 hover:border-indigo-500/90 "
         >
           <Plus className="mr-2 h-4 w-4 opacity-90" />
           New Project
@@ -526,13 +527,13 @@ export default function ProjectsClientPage({ orgId, initialProjects, initialTota
         <div className="flex flex-col">
           {/* ── Sticky toolbar + column headers ── */}
           <div className="sticky top-0 z-30 rounded-t-lg border border-b-0 border-zinc-200 bg-white overflow-hidden">
-            <div className="flex items-center justify-between gap-4 border-b border-zinc-200/80 bg-white px-4 py-3">
+            <div className="flex items-center justify-between gap-4 border-b border-zinc-300 bg-zinc-200/80 px-4 py-3">
               <div className="flex-1">{projectsToolbar}</div>
             </div>
 
             {/* Count line — inline and compact */}
-            <div className="flex items-center justify-between border-b border-zinc-100 bg-zinc-50/60 px-6 py-2">
-              <p className="text-xs text-zinc-400">
+            <div className="flex items-center justify-between border-b border-zinc-300 bg-zinc-200/80 px-6 py-2">
+              <p className="text-[12px] text-zinc-600">
                 Showing{" "}
                 <span className="font-medium text-zinc-600">{projects.length}</span>
                 {" "}of{" "}
@@ -542,11 +543,11 @@ export default function ProjectsClientPage({ orgId, initialProjects, initialTota
             </div>
 
             <div
-              className={`hidden items-center gap-4 border-b border-zinc-200/80 bg-zinc-50/80 px-6 py-3 text-xs font-medium uppercase tracking-wider text-zinc-400 md:grid ${desktopProjectsTableGrid}`}
+              className={`hidden items-center gap-4 border-b border-zinc-200 bg-zinc-200/80 px-6 py-3 text-[13px] font-medium uppercase tracking-wider text-zinc-500 md:grid ${desktopProjectsTableGrid}`}
             >
               <div
                 onClick={() => handleSort("name")}
-                className="flex cursor-pointer select-none items-center gap-1 hover:text-zinc-700"
+                className="flex cursor-pointer select-none items-center gap-1 hover:text-zinc-800"
               >
                 Project {SortIcon("name")}
               </div>
@@ -554,19 +555,19 @@ export default function ProjectsClientPage({ orgId, initialProjects, initialTota
               <div className="whitespace-nowrap">Status</div>
               <div
                 onClick={() => handleSort("progress")}
-                className="flex cursor-pointer select-none items-center gap-1 hover:text-zinc-700"
+                className="flex cursor-pointer select-none items-center gap-1 hover:text-zinc-800"
               >
                 Progress {SortIcon("progress")}
               </div>
               <div
                 onClick={() => handleSort("start_date")}
-                className="flex cursor-pointer select-none items-center gap-1 hover:text-zinc-700"
+                className="flex cursor-pointer select-none items-center gap-1 hover:text-zinc-800"
               >
                 Start date {SortIcon("start_date")}
               </div>
               <div
                 onClick={() => handleSort("end_date")}
-                className="flex cursor-pointer select-none items-center gap-1 hover:text-zinc-700"
+                className="flex cursor-pointer select-none items-center gap-1 hover:text-zinc-800"
               >
                 Due date {SortIcon("end_date")}
               </div>
@@ -613,7 +614,7 @@ export default function ProjectsClientPage({ orgId, initialProjects, initialTota
                   <div
                     key={project.id}
                     onClick={() => router.push(`/organizations/${orgId}/projects/${project.id}`)}
-                    className={`group relative flex flex-col items-start gap-3 px-4 py-4 transition-colors hover:bg-zinc-50/60 md:grid md:items-center md:gap-4 md:px-6 md:py-3.5 ${desktopProjectsTableGrid}`}
+                    className={`group relative flex flex-col items-start gap-3 px-4 py-4 transition-colors hover:bg-zinc-100/60 md:grid md:items-center md:gap-4 md:px-6 md:py-3.5 ${desktopProjectsTableGrid}`}
                   >
                     {/* Project name with strict layout guardrails */}
                     <div className="flex w-full min-w-0 flex-col justify-center">
@@ -718,7 +719,7 @@ export default function ProjectsClientPage({ orgId, initialProjects, initialTota
                           <span className="text-[11px] leading-none font-medium text-zinc-400">{progressText}</span>
                         </div>
                       ) : (
-                        <span className="text-sm text-zinc-300 font-normal select-none">—</span>
+                        <span className="text-sm text-zinc-400 font-normal select-none">No tasks</span>
                       )}
                     </div>
 
@@ -735,7 +736,13 @@ export default function ProjectsClientPage({ orgId, initialProjects, initialTota
                           }}
                           className="flex items-center gap-2 whitespace-nowrap text-sm text-zinc-600 hover:text-zinc-900 transition-colors"
                         >
-                          {formattedStart ?? <span className="text-zinc-300 font-normal select-none">—</span>}
+                          {/* Replace the fallback under the Start Date / Due Date text tracks */}
+                          {formattedStart ?? (
+                            <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400 font-normal opacity-0 group-hover:opacity-100 transition-opacity select-none">
+                              <Calendar className="h-3 w-3" />
+                              Set date
+                            </span>
+                          )}
                         </button>
                         {openStartPopoverId === project.id && (
                           <div
@@ -796,7 +803,10 @@ export default function ProjectsClientPage({ orgId, initialProjects, initialTota
                               {formattedDue}
                             </span>
                           ) : (
-                            <span className="text-zinc-300 font-normal select-none">—</span>
+                            <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400 font-normal opacity-0 group-hover:opacity-100 transition-opacity select-none">
+                              <Calendar className="h-3 w-3" />
+                              Set date
+                            </span>
                           )}
                           {overdue && (
                             <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-600 border border-red-100">
@@ -859,7 +869,7 @@ export default function ProjectsClientPage({ orgId, initialProjects, initialTota
                               openActionsMenu(project, e.currentTarget.getBoundingClientRect());
                             }
                           }}
-                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-300 transition-all hover:bg-zinc-100 hover:text-zinc-600 focus-visible:bg-zinc-100 focus-visible:outline-none group-hover:text-zinc-400"
+                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-all hover:bg-zinc-100 hover:text-zinc-600 focus-visible:bg-zinc-100 focus-visible:outline-none group-hover:text-zinc-400"
                           aria-label={`Project actions for ${project.name}`}
                           aria-expanded={actionsMenu?.projectId === project.id}
                         >
