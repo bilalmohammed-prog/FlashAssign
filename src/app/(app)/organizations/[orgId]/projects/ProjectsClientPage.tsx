@@ -164,7 +164,19 @@ export default function ProjectsClientPage({ orgId, initialProjects, initialTota
   const loadingMoreRef = useRef(false);
   const [sortBy, setSortBy] = useState<"name" | "progress" | "start_date" | "end_date">("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+const headingRef = useRef<HTMLDivElement>(null);
+const [headingGone, setHeadingGone] = useState(false);
 
+useEffect(() => {
+  const el = headingRef.current;
+  if (!el) return;
+  const obs = new IntersectionObserver(
+    ([entry]) => setHeadingGone(!entry.isIntersecting),
+    { threshold: 0 }
+  );
+  obs.observe(el);
+  return () => obs.disconnect();
+}, []);
   useEffect(() => {
     if (searchQuery === debouncedSearch) return;
     const timer = setTimeout(() => {
@@ -494,9 +506,9 @@ export default function ProjectsClientPage({ orgId, initialProjects, initialTota
   return (
     <div className="flex w-full flex-col gap-4 pb-12">
       {/* ── Page heading ── */}
-      <div className="space-y-1">
+      <div ref={headingRef} className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Projects</h1>
-        <p className="text-sm text-zinc-500">Manage projects, status, and workspace members.</p>
+        <p className="z-60 text-sm text-zinc-500">Manage projects, status, and workspace members.</p>
       </div>
 
       {loading ? (
@@ -526,8 +538,17 @@ export default function ProjectsClientPage({ orgId, initialProjects, initialTota
       ) : (
         <div className="flex flex-col">
           {/* ── Sticky toolbar + column headers ── */}
-          <div className="sticky top-0 z-30 rounded-t-lg border border-b-0 border-zinc-200 bg-white overflow-hidden">
-            <div className="flex items-center justify-between gap-4 border-b border-zinc-300 bg-zinc-200/80 px-4 py-3">
+          <div className={`sticky top-0 z-30 border border-b-0 border-zinc-200 bg-white transition-[border-radius] duration-150 ${headingGone ? "rounded-none" : "rounded-t-lg"}`}>
+            {headingGone && (
+  <div
+    aria-hidden="true"
+    className="pointer-events-none absolute top-0 left-0 right-0 h-12 -translate-y-full"
+    style={{
+      background: "linear-gradient(to top, rgba(249,250,251,0.95) 0%, transparent 100%)",
+    }}
+  />
+)}
+            <div className="flex items-center justify-between gap-4 rounded-t-lg border-b border-zinc-300 bg-zinc-200/80 px-4 py-3 overflow-hidden">
               <div className="flex-1">{projectsToolbar}</div>
             </div>
 
@@ -573,6 +594,7 @@ export default function ProjectsClientPage({ orgId, initialProjects, initialTota
               </div>
               <div aria-hidden="true" />
             </div>
+
           </div>
 
           {projects.length === 0 ? (
