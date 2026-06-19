@@ -40,7 +40,7 @@ export function DatePicker({
         <Button
           onClick={(e) => e.stopPropagation()}
           variant={variant}
-          className={`gap-0 ${className ?? ""}`}
+          className={`gap-0 cursor-pointer ${className ?? ""}`}
           
         >
 

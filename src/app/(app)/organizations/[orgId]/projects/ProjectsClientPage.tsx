@@ -468,7 +468,7 @@ useEffect(() => {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as "all" | ProjectStatus)}
-          className="h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-44 border-zinc-300 shadow-sm"
+          className="h-9 w-full cursor-pointer rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-44 border-zinc-300 shadow-sm"
         >
           <option value="all">All statuses</option>
           <option value="active">Active</option>
@@ -480,6 +480,7 @@ useEffect(() => {
           <DatePicker
             value={startDateFilter || null}
             onChange={(value) => setStartDateFilter(value ?? "")}
+            placeholder="Start date"
             className="h-9 w-[150px] justify-start border-zinc-300 bg-white px-3 text-sm font-normal shadow-sm hover:bg-white"
           />
 
@@ -488,6 +489,7 @@ useEffect(() => {
           <DatePicker
             value={dueDateFilter || null}
             onChange={(value) => setDueDateFilter(value ?? "")}
+            placeholder="Due date"
             className="h-9 w-[150px] justify-start border-zinc-300 bg-white px-3 text-sm font-normal shadow-sm hover:bg-white"
           />
         </div>
@@ -496,7 +498,7 @@ useEffect(() => {
       {canManage && (
         <Button
           onClick={() => setShowCreate(true)}
-          className="h-9 shrink-0 rounded-lg border border-indigo-500 bg-indigo-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-500/90 hover:border-indigo-500/90 "
+          className="h-9 shrink-0 cursor-pointer rounded-lg border border-indigo-500 bg-indigo-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-500/90 hover:border-indigo-500/90 "
         >
           <Plus className="mr-2 h-4 w-4 opacity-90" />
           New Project
@@ -854,7 +856,7 @@ useEffect(() => {
                               openActionsMenu(project, e.currentTarget.getBoundingClientRect());
                             }
                           }}
-                          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-all hover:bg-zinc-100 hover:text-zinc-600 focus-visible:bg-zinc-100 focus-visible:outline-none group-hover:text-zinc-400"
+                          className="cursor-pointer inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-all hover:bg-zinc-100 hover:text-zinc-600 focus-visible:bg-zinc-100 focus-visible:outline-none group-hover:text-zinc-400"
                           aria-label={`Project actions for ${project.name}`}
                           aria-expanded={actionsMenu?.projectId === project.id}
                         >
@@ -1063,14 +1065,14 @@ useEffect(() => {
               <div className="flex items-center justify-end gap-2 pt-1">
                 <button
                   onClick={() => setShowCreate(false)}
-                  className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600 transition-colors hover:bg-zinc-50"
+                  className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600 transition-colors hover:bg-zinc-50 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   disabled={!name.trim() || creating}
                   onClick={handleCreate}
-                  className="rounded-md border border-transparent bg-indigo-600 px-3 py-2 text-sm text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-40"
+                  className="rounded-md cursor-pointer border border-transparent bg-indigo-600 px-3 py-2 text-sm text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-40"
                 >
                   {creating ? "Creating..." : "Create"}
                 </button>
