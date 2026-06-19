@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { listOrgMembers } from "@/actions/organization/listOrgMembers";
+import { DatePicker } from "@/components/ui/date-picker";
 
 type ProjectStatus = "active" | "paused" | "archived";
 
@@ -53,10 +54,15 @@ type ProjectsClientPageProps = {
 
 function formatDate(date?: string | null) {
   if (!date) return null;
+
   try {
-    return new Date(date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
+    return new Date(date).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
   } catch {
-    return new Date(date).toLocaleDateString();
+    return date;
   }
 }
 
@@ -471,20 +477,18 @@ useEffect(() => {
         </select>
 
         <div className="flex items-center gap-2">
-          <input
-            type="date"
-            value={startDateFilter}
-            onChange={(e) => setStartDateFilter(e.target.value)}
-            className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 border-zinc-300 shadow-sm"
-            title="Start Date"
+          <DatePicker
+            value={startDateFilter || null}
+            onChange={(value) => setStartDateFilter(value ?? "")}
+            className="h-9 w-[150px] justify-start border-zinc-300 bg-white px-3 text-sm font-normal shadow-sm hover:bg-white"
           />
+
           <ArrowRight className="h-4 w-4 text-zinc-400" />
-          <input
-            type="date"
-            value={dueDateFilter}
-            onChange={(e) => setDueDateFilter(e.target.value)}
-            className="h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 border-zinc-300 shadow-sm"
-            title="Due Date"
+
+          <DatePicker
+            value={dueDateFilter || null}
+            onChange={(value) => setDueDateFilter(value ?? "")}
+            className="h-9 w-[150px] justify-start border-zinc-300 bg-white px-3 text-sm font-normal shadow-sm hover:bg-white"
           />
         </div>
       </div>
@@ -651,6 +655,7 @@ useEffect(() => {
                           {project.status}
                         </span>
                         <span className="h-1 w-1 rounded-full bg-zinc-300" />
+                        {/* underinspection for dead code */}
                         <div className="relative">
                           <button
                             onClick={(e) => {
@@ -694,6 +699,7 @@ useEffect(() => {
                             </div>
                           )}
                         </div>
+                        {/* under inspection for dead code */}
                       </div>
                     </div>
 
@@ -747,133 +753,90 @@ useEffect(() => {
 
                     {/* Start date — 10/10 vertical flex alignment locked */}
                     <div className="hidden min-w-0 md:flex md:h-full md:items-center text-sm text-zinc-500">
-                      <div className="relative">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (openStartPopoverId !== project.id) {
-                              startDateDraftRef.current[project.id] = project.startDate ?? null;
-                            }
-                            setOpenStartPopoverId((id) => (id === project.id ? null : project.id));
-                          }}
-                          className="flex items-center gap-2 whitespace-nowrap text-sm text-zinc-600 hover:text-zinc-900 transition-colors"
-                        >
-                          {/* Replace the fallback under the Start Date / Due Date text tracks */}
-                          {formattedStart ?? (
-                            <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400 font-normal opacity-0 group-hover:opacity-100 transition-opacity select-none">
-                              <Calendar className="h-3 w-3" />
-                              Set date
-                            </span>
-                          )}
-                        </button>
-                        {openStartPopoverId === project.id && (
-                          <div
-                            onClick={(e) => e.stopPropagation()}
-                            className="absolute right-0 z-50 mt-2 w-44 rounded-md border bg-white p-2 shadow-md"
-                          >
-                            <input
-                              type="date"
-                              autoFocus
-                              value={project.startDate ?? ""}
-                              onChange={(e) => {
-                                const val = e.target.value || null;
-                                setProjects((prev) =>
-                                  prev.map((item) => (item.id === project.id ? { ...item, startDate: val } : item))
-                                );
-                              }}
-                              onBlur={async (e) => {
-                                const val = e.currentTarget.value || null;
-                                const previous = startDateDraftRef.current[project.id] ?? null;
-                                setSavingProjectId(project.id);
-                                try {
-                                  await updateProjectAction(project.id, { startDate: val });
-                                } catch {
-                                  addToastRef.current("Failed to update start date", "error");
-                                  setProjects((prev) =>
-                                    prev.map((item) => (item.id === project.id ? { ...item, startDate: previous } : item))
-                                  );
-                                } finally {
-                                  setSavingProjectId(null);
-                                  setOpenStartPopoverId(null);
-                                }
-                              }}
-                              className="w-full rounded-md border px-2 py-1 text-sm outline-none"
-                            />
-                            {savingProjectId === project.id && (
-                              <div className="mt-1 text-xs text-zinc-500">Saving...</div>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      <DatePicker
+                        value={project.startDate}
+                        variant="ghost"
+                        className="-ml-0 h-auto px-0 py-0 text-sm font-normal text-zinc-600 hover:bg-transparent hover:text-zinc-900"
+                        placeholder="Set date"
+                        ghostPlaceholder
+                        onChange={async (val) => {
+                          const previous = project.startDate;
+
+                          setProjects((prev) =>
+                            prev.map((item) =>
+                              item.id === project.id
+                                ? { ...item, startDate: val }
+                                : item
+                            )
+                          );
+
+                          setSavingProjectId(project.id);
+
+                          try {
+                            await updateProjectAction(project.id, { startDate: val });
+                          } catch {
+                            addToastRef.current("Failed to update start date", "error");
+
+                            setProjects((prev) =>
+                              prev.map((item) =>
+                                item.id === project.id
+                                  ? { ...item, startDate: previous }
+                                  : item
+                              )
+                            );
+                          } finally {
+                            setSavingProjectId(null);
+                          }
+                        }}
+                      />
                     </div>
 
                     {/* Due date — Strict inline block alignment rules for badges */}
                     <div className="hidden min-w-0 md:flex md:h-full md:items-center">
-                      <div className="relative">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (openDuePopoverId !== project.id) {
-                              endDateDraftRef.current[project.id] = project.endDate ?? null;
+                      <div className="flex items-center gap-2">
+                        <DatePicker
+                          value={project.endDate}
+                          danger={overdue}
+                          variant="ghost"
+                          className="h-auto px-0 py-0 text-sm font-normal text-zinc-600 hover:bg-transparent hover:text-zinc-900"
+                          placeholder="Set date"
+                          ghostPlaceholder
+                          onChange={async (val) => {
+                            const previous = project.endDate;
+
+                            setProjects((prev) =>
+                              prev.map((item) =>
+                                item.id === project.id
+                                  ? { ...item, endDate: val }
+                                  : item
+                              )
+                            );
+
+                            setSavingProjectId(project.id);
+
+                            try {
+                              await updateProjectAction(project.id, { endDate: val });
+                            } catch {
+                              addToastRef.current("Failed to update due date", "error");
+
+                              setProjects((prev) =>
+                                prev.map((item) =>
+                                  item.id === project.id
+                                    ? { ...item, endDate: previous }
+                                    : item
+                                )
+                              );
+                            } finally {
+                              setSavingProjectId(null);
                             }
-                            setOpenDuePopoverId((id) => (id === project.id ? null : project.id));
                           }}
-                          className="flex items-center gap-2.5 whitespace-nowrap text-sm text-zinc-600 hover:text-zinc-900 transition-colors"
-                        >
-                          {formattedDue ? (
-                            <span className={overdue ? "text-red-600 font-medium" : undefined}>
-                              {formattedDue}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400 font-normal opacity-0 group-hover:opacity-100 transition-opacity select-none">
-                              <Calendar className="h-3 w-3" />
-                              Set date
-                            </span>
-                          )}
-                          {overdue && (
-                            <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-600 border border-red-100">
-                              <AlertCircle className="h-3 w-3 shrink-0" />
-                              Overdue
-                            </span>
-                          )}
-                        </button>
-                        {openDuePopoverId === project.id && (
-                          <div
-                            onClick={(e) => e.stopPropagation()}
-                            className="absolute right-0 z-50 mt-2 w-44 rounded-md border bg-white p-2 shadow-md"
-                          >
-                            <input
-                              type="date"
-                              autoFocus
-                              value={project.endDate ?? ""}
-                              onChange={(e) => {
-                                const val = e.target.value || null;
-                                setProjects((prev) =>
-                                  prev.map((item) => (item.id === project.id ? { ...item, endDate: val } : item))
-                                );
-                              }}
-                              onBlur={async (e) => {
-                                const val = e.currentTarget.value || null;
-                                const previous = endDateDraftRef.current[project.id] ?? null;
-                                setSavingProjectId(project.id);
-                                try {
-                                  await updateProjectAction(project.id, { endDate: val });
-                                } catch {
-                                  addToastRef.current("Failed to update due date", "error");
-                                  setProjects((prev) =>
-                                    prev.map((item) => (item.id === project.id ? { ...item, endDate: previous } : item))
-                                  );
-                                } finally {
-                                  setSavingProjectId(null);
-                                  setOpenDuePopoverId(null);
-                                }
-                              }}
-                              className="w-full rounded-md border px-2 py-1 text-sm outline-none"
-                            />
-                            {savingProjectId === project.id && (
-                              <div className="mt-1 text-xs text-zinc-500">Saving...</div>
-                            )}
-                          </div>
+                        />
+
+                        {overdue && (
+                          <span className="inline-flex items-center gap-1 rounded-md border border-red-100 bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-600">
+                            <AlertCircle className="h-3 w-3 shrink-0" />
+                            Overdue
+                          </span>
                         )}
                       </div>
                     </div>
@@ -1072,21 +1035,28 @@ useEffect(() => {
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-zinc-500">Start date (optional)</label>
-                  <input
-                    type="date"
-                    value={createStartDate}
-                    onChange={(e) => setCreateStartDate(e.target.value)}
-                    className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                  <label className="text-sm font-medium text-zinc-500">
+                    Start date (optional)
+                  </label>
+
+                  <DatePicker
+                    value={createStartDate || null}
+                    onChange={(value) => setCreateStartDate(value ?? "")}
+                    variant="outline"
+                    className="h-10 w-full justify-start border-zinc-200 bg-white px-3 text-sm font-normal shadow-sm hover:bg-white"
                   />
                 </div>
+
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-zinc-500">Due date (optional)</label>
-                  <input
-                    type="date"
-                    value={createEndDate}
-                    onChange={(e) => setCreateEndDate(e.target.value)}
-                    className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                  <label className="text-sm font-medium text-zinc-500">
+                    Due date (optional)
+                  </label>
+
+                  <DatePicker
+                    value={createEndDate || null}
+                    onChange={(value) => setCreateEndDate(value ?? "")}
+                    variant="outline"
+                    className="h-10 w-full justify-start border-zinc-200 bg-white px-3 text-sm font-normal shadow-sm hover:bg-white"
                   />
                 </div>
               </div>
