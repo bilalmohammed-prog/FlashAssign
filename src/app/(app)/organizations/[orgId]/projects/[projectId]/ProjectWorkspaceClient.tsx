@@ -15,9 +15,9 @@ import type { Enums, Tables, TablesUpdate } from "@/lib/types/database";
 import { updateTask } from "@/actions/task/update";
 import { createTask } from "@/actions/task/create";
 import { deleteTask as deleteTaskAction } from "@/actions/task/delete";
-import { listOrgMembers } from "@/actions/organization/listOrgMembers";
-import { assignTaskToResource } from "@/actions/task/assign";
-import { assignProjectMember } from "@/actions/project/assignProjectMember";
+import { listOrgMembers } from "@/actions/organization/listOrgMembers"; //need to update to include sorting and filtering
+import { assignTaskToResource } from "@/actions/task/assign";//need to update to include sorting and filtering
+import { assignProjectMember } from "@/actions/project/assignProjectMember";//need to update to include sorting and filtering
 import { removeProjectMember } from "@/actions/project/removeProjectMember";
 import { usePageHeader } from "@/components/layout/PageHeaderContext";
 import { Button } from "@/components/ui/button";
@@ -284,7 +284,8 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
 
   const orgMembersCacheRef = useRef<{ orgId: string; members: HumanResource[] } | null>(null);
-
+  const PAGE_SIZE = 12;
+  const tasksCountRef = useRef(0);
   const fetchOrgMembers = useCallback(async () => {
     if (orgMembersCacheRef.current?.orgId === orgId) {
       setEmployees(orgMembersCacheRef.current.members);
