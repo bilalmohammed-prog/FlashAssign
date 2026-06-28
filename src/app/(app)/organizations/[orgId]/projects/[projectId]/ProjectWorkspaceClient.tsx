@@ -10,14 +10,16 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Trash2,
+  X,
 } from "lucide-react";
 import type { Enums, Tables, TablesUpdate } from "@/lib/types/database";
 import { updateTask } from "@/actions/task/update";
 import { createTask } from "@/actions/task/create";
 import { deleteTask as deleteTaskAction } from "@/actions/task/delete";
-import { listOrgMembers } from "@/actions/organization/listOrgMembers"; //need to update to include sorting and filtering
-import { assignTaskToResource } from "@/actions/task/assign";//need to update to include sorting and filtering
-import { assignProjectMember } from "@/actions/project/assignProjectMember";//need to update to include sorting and filtering
+import { listOrgMembers } from "@/actions/organization/listOrgMembers";
+import { assignTaskToResource } from "@/actions/task/assign";
+import { assignProjectMember } from "@/actions/project/assignProjectMember";
 import { removeProjectMember } from "@/actions/project/removeProjectMember";
 import { usePageHeader } from "@/components/layout/PageHeaderContext";
 import { Button } from "@/components/ui/button";
@@ -48,7 +50,7 @@ export type ProjectWorkspaceInitialData = {
   tasks: TaskWithAssignee[];
 };
 
-const desktopTasksTableGrid = "md:grid-cols-[48px_minmax(0,1.8fr)_220px_152px_140px_140px]";
+const desktopTasksTableGrid = "md:grid-cols-[48px_minmax(0,1.8fr)_220px_152px_140px_140px_48px]";
 
 type TaskRowProps = {
   task: TaskWithAssignee;
@@ -82,34 +84,18 @@ const TaskRow = memo(function TaskRow({
 
   const fieldsDisabled = !canManage || deleteMode;
   const statusDisabled = deleteMode || (!canManage && !canEditStatus);
-  const rowClassName = deleteMode
-    ? selectedForDelete
-      ? "cursor-pointer border-red-200 bg-red-50/70 hover:bg-red-50/80"
-      : "cursor-pointer border-zinc-100 bg-white hover:border-red-200 hover:bg-red-50/30"
+  const rowClassName = selectedForDelete
+    ? "border-red-200 bg-red-50/70 hover:bg-red-50/80"
     : "border-zinc-100 bg-white hover:bg-zinc-100/60";
 
   return (
     <div
-      role={deleteMode ? "button" : undefined}
-      tabIndex={deleteMode ? 0 : undefined}
-      aria-selected={deleteMode ? selectedForDelete : undefined}
-      onClick={deleteMode ? () => onToggleDeleteSelection(task.id) : undefined}
-      onKeyDown={
-        deleteMode
-          ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onToggleDeleteSelection(task.id);
-              }
-            }
-          : undefined
-      }
       className={`group relative flex flex-col items-start gap-3 px-4 py-4 transition-colors md:grid md:items-center md:gap-4 md:px-6 md:py-3.5 ${desktopTasksTableGrid} ${rowClassName}`}
     >
       <div className="flex w-full justify-center pt-0.5 md:pt-0">
         <TaskSelectionIndicator
-          selected={deleteMode ? selectedForDelete : task.status === "done"}
-          deleteMode={deleteMode}
+          selected={selectedForDelete || task.status === "done"}
+          deleteMode={selectedForDelete}
         />
       </div>
 
@@ -125,12 +111,12 @@ const TaskRow = memo(function TaskRow({
           }}
           disabled={fieldsDisabled}
           className={`w-full truncate bg-transparent text-[15px] font-medium outline-none disabled:cursor-default ${
-            deleteMode && selectedForDelete
+            selectedForDelete
               ? "line-through text-red-950/80"
               : task.status === "done"
                 ? "text-zinc-500"
                 : "text-zinc-900"
-          } ${deleteMode ? "opacity-90" : ""}`}
+          } ${selectedForDelete ? "opacity-90" : ""}`}
         />
         <ExpandableDescription
           value={descriptionValue}
@@ -139,18 +125,18 @@ const TaskRow = memo(function TaskRow({
             onCommitUpdate(task.id, { description: nextValue.trim() ? nextValue : null });
           }}
           disabled={fieldsDisabled}
-          className={`mt-1 ${deleteMode ? "opacity-90" : ""}`}
+          className={`mt-1 ${selectedForDelete ? "opacity-90" : ""}`}
         />
         <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-zinc-500 md:hidden">
           <span
-            className={`rounded px-2 py-0.5 text-xs font-medium ${getTaskStatusBadgeClass(task.status)} ${deleteMode ? "opacity-90" : ""}`}
+            className={`rounded px-2 py-0.5 text-xs font-medium ${getTaskStatusBadgeClass(task.status)} ${selectedForDelete ? "opacity-90" : ""}`}
           >
             {getTaskStatusLabel(task.status)}
           </span>
-          <span className={deleteMode ? "opacity-90" : ""}>
+          <span className={selectedForDelete ? "opacity-90" : ""}>
             Start: {formatDateLabel(task.start_date, "No start date")}
           </span>
-          <span className={deleteMode ? "opacity-90" : ""}>
+          <span className={selectedForDelete ? "opacity-90" : ""}>
             Due: {formatDateLabel(task.due_date, "No due date")}
           </span>
           {savingId === task.id && <span>Saving...</span>}
@@ -163,7 +149,7 @@ const TaskRow = memo(function TaskRow({
             value={task.assignee_id || ""}
             onChange={(e) => onAssign(task.id, e.target.value)}
             disabled={fieldsDisabled}
-            className={`min-w-0 flex-1 appearance-none bg-transparent text-sm font-medium text-zinc-900 outline-none disabled:cursor-default ${deleteMode ? "opacity-90" : ""}`}
+            className={`min-w-0 flex-1 appearance-none bg-transparent text-sm font-medium text-zinc-900 outline-none disabled:cursor-default ${selectedForDelete ? "opacity-90" : ""}`}
           >
             <option value="">Unassigned</option>
             {projectMembers.map((employee) => (
@@ -182,7 +168,7 @@ const TaskRow = memo(function TaskRow({
               value={task.assignee_id || ""}
               onChange={(e) => onAssign(task.id, e.target.value)}
               disabled={fieldsDisabled}
-              className={`min-w-0 flex-1 appearance-none bg-transparent text-sm text-zinc-500 outline-none disabled:cursor-default ${deleteMode ? "opacity-90" : ""}`}
+              className={`min-w-0 flex-1 appearance-none bg-transparent text-sm text-zinc-500 outline-none disabled:cursor-default ${selectedForDelete ? "opacity-90" : ""}`}
             >
               <option value="">Unassigned</option>
               {projectMembers.map((employee) => (
@@ -203,7 +189,7 @@ const TaskRow = memo(function TaskRow({
             onCommitUpdate(task.id, { status: value });
           }}
           disabled={statusDisabled}
-          className={`appearance-none rounded-md border px-2.5 py-1 text-[13px] font-medium outline-none disabled:cursor-default cursor-pointer transition-all ${getTaskStatusBadgeClass(task.status)} ${deleteMode ? "opacity-90" : ""}`}
+          className={`appearance-none rounded-md border px-2.5 py-1 text-[13px] font-medium outline-none disabled:cursor-default cursor-pointer transition-all ${getTaskStatusBadgeClass(task.status)} ${selectedForDelete ? "opacity-90" : ""}`}
         >
           <option value="todo">To Do</option>
           <option value="in_progress">In Progress</option>
@@ -225,7 +211,7 @@ const TaskRow = memo(function TaskRow({
             if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur();
           }}
           disabled={fieldsDisabled}
-          className={`bg-transparent text-sm font-normal text-zinc-600 outline-none hover:text-zinc-900 disabled:cursor-default ${deleteMode ? "opacity-90" : ""}`}
+          className={`bg-transparent text-sm font-normal text-zinc-600 outline-none hover:text-zinc-900 disabled:cursor-default ${selectedForDelete ? "opacity-90" : ""}`}
         />
       </div>
 
@@ -241,8 +227,25 @@ const TaskRow = memo(function TaskRow({
             if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur();
           }}
           disabled={fieldsDisabled}
-          className={`bg-transparent text-sm font-normal text-zinc-600 outline-none hover:text-zinc-900 disabled:cursor-default ${deleteMode ? "opacity-90" : ""}`}
+          className={`bg-transparent text-sm font-normal text-zinc-600 outline-none hover:text-zinc-900 disabled:cursor-default ${selectedForDelete ? "opacity-90" : ""}`}
         />
+      </div>
+
+      <div className="flex w-full items-center justify-end md:justify-center">
+        {canManage && (
+          <button
+            type="button"
+            onClick={() => onToggleDeleteSelection(task.id)}
+            className={`rounded-md p-1.5 transition-all outline-none ${
+              selectedForDelete
+                ? "text-red-600 bg-red-100 hover:bg-red-200"
+                : "text-zinc-400 opacity-40 hover:text-red-600 hover:bg-zinc-100 hover:opacity-100 group-hover:opacity-100"
+            }`}
+            title="Delete task"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -445,20 +448,21 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
     [canManage, commitUpdate, role, tasks, updateTaskInState, userId]
   );
 
-  const toggleDeleteMode = useCallback(() => {
-    setDeleteMode(true);
-    setSelectedTaskIds([]);
-  }, []);
-
   const cancelDeleteMode = useCallback(() => {
     setDeleteMode(false);
     setSelectedTaskIds([]);
   }, []);
 
   const toggleTaskSelection = useCallback((taskId: string) => {
-    setSelectedTaskIds((prev) =>
-      prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId]
-    );
+    setSelectedTaskIds((prev) => {
+      const next = prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId];
+      if (next.length === 0) {
+        setDeleteMode(false);
+      } else {
+        setDeleteMode(true);
+      }
+      return next;
+    });
   }, []);
 
   const handleBulkDelete = useCallback(async () => {
@@ -685,33 +689,6 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
 
       {canManage && (
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 md:flex-nowrap">
-          {!deleteMode ? (
-            <Button
-              variant="outline"
-              className="h-9 border-red-200 bg-white px-4 text-sm font-medium text-red-700 shadow-sm hover:bg-red-50"
-              onClick={toggleDeleteMode}
-              disabled={tasks.length === 0}
-            >
-              Delete Tasks
-            </Button>
-          ) : (
-            <>
-              <Button
-                variant="outline"
-                className="h-9 border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50"
-                onClick={cancelDeleteMode}
-              >
-                Cancel
-              </Button>
-              <Button
-                className="h-9 bg-red-600 px-4 text-sm font-medium text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
-                onClick={() => void handleBulkDelete()}
-                disabled={selectedTaskIds.length === 0}
-              >
-                Delete Selected{selectedTaskIds.length ? ` (${selectedTaskIds.length})` : ""}
-              </Button>
-            </>
-          )}
           <Button
             className="h-9 shrink-0 cursor-pointer rounded-lg border border-indigo-500 bg-indigo-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-500/90"
             onClick={() => setShowCreate(true)}
@@ -726,6 +703,36 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
 
   return (
     <div className="flex w-full flex-col gap-4 pb-12">
+      {/* Dynamic Confirmation Banner */}
+      {deleteMode && selectedTaskIds.length > 0 && (
+        <div className="fixed top-4 left-1/2 z-[100] flex w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-white shadow-xl animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500/20 text-xs font-semibold text-red-400">
+              {selectedTaskIds.length}
+            </span>
+            <span>
+              Delete {selectedTaskIds.length} task{selectedTaskIds.length === 1 ? "" : "s"}?
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={cancelDeleteMode}
+              className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white"
+              title="Cancel selection"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <Button
+              size="sm"
+              className="h-8 bg-red-600 px-3 text-xs font-medium text-white hover:bg-red-700"
+              onClick={() => void handleBulkDelete()}
+            >
+              Confirm
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col">
         {/* Sticky toolbar + column headers */}
         <div className="sticky top-0 z-30 border border-b-0 border-zinc-200 bg-white transition-[border-radius] duration-150 rounded-t-lg">
@@ -775,6 +782,9 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
               className="flex cursor-pointer select-none items-center gap-1 hover:text-zinc-800"
             >
               Due Date {SortIcon("due_date")}
+            </div>
+            <div className="flex justify-center">
+              <span className="sr-only">Actions</span>
             </div>
           </div>
         </div>
