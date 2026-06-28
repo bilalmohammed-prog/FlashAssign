@@ -24,3 +24,5 @@ factors:
 
 11. ui inconsistency   while changing the due date of projects
 12. in space between name and role in memeber tab in teams will add ROLETAGS for instant allocation
+
+13. look into denormaliztion do decrease page latency

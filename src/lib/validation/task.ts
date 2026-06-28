@@ -22,6 +22,7 @@ export const taskUpdateSchema = z
   .object({
     title: nonEmptyStringSchema.optional(),
     description: optionalTextSchema.optional(),
+    startDate: isoDateStringSchema.optional(),
     dueDate: isoDateStringSchema.optional(),
     status: taskStatusInputSchema.optional(),
     project_id: uuidSchema.nullable().optional(),

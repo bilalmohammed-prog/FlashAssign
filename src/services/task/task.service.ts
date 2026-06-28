@@ -10,6 +10,7 @@ export async function createTask(
     createdBy: string;
     title: string;
     description?: string;
+    startDate?: string;
     dueDate?: string;
   }
 ): Promise<Tables<"tasks">> {
@@ -38,6 +39,7 @@ export async function createTask(
     title: params.title,
     description: params.description ?? null,
     status: "todo",
+    start_date: params.startDate ?? null,
     due_date: params.dueDate ?? null,
   };
 
@@ -62,7 +64,7 @@ export async function getTasksByProject(
   const { data, error } = await supabase
     .from("tasks")
     .select(
-      "id,title,description,due_date,status,organization_id,project_id,created_by,created_at,deleted_at"
+      "id,title,description,start_date,due_date,status,organization_id,project_id,created_by,created_at,deleted_at"
     )
     .eq("organization_id", params.organizationId)
     .eq("project_id", params.projectId)
@@ -155,6 +157,7 @@ export async function updateTask(
     updates: {
       title?: string;
       description?: string | null;
+      start_date?: string | null;
       due_date?: string | null;
       status?: "todo" | "in_progress" | "blocked" | "done";
       project_id?: string | null;

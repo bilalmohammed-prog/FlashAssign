@@ -18,6 +18,7 @@ export async function updateTask(
   const validatedUpdates = taskUpdateSchema.parse({
     title: updates.title,
     description: updates.description,
+    startDate: updates.start_date,
     dueDate: updates.due_date,
     status: updates.status,
     project_id: updates.project_id,
@@ -37,6 +38,7 @@ export async function updateTask(
     updates: {
       title: validatedUpdates.title,
       description: validatedUpdates.description,
+      start_date: validatedUpdates.startDate,
       due_date: validatedUpdates.dueDate,
       status: normalizeTaskUpdateStatus(validatedUpdates.status),
       project_id: validatedUpdates.project_id,
@@ -49,6 +51,7 @@ export async function updateTask(
     updates: {
       title: validatedUpdates.title,
       description: validatedUpdates.description,
+      start_date: validatedUpdates.startDate,
       due_date: validatedUpdates.dueDate,
       status: normalizeTaskUpdateStatus(validatedUpdates.status),
       project_id: validatedUpdates.project_id,

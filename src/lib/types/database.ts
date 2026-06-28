@@ -6,8 +6,6 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export type UUID = string
-
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
@@ -20,6 +18,7 @@ export type Database = {
         Row: {
           allocated_hours: number | null
           created_at: string | null
+          deleted_at: string | null
           end_time: string | null
           id: string
           organization_id: string
@@ -30,6 +29,7 @@ export type Database = {
         Insert: {
           allocated_hours?: number | null
           created_at?: string | null
+          deleted_at?: string | null
           end_time?: string | null
           id?: string
           organization_id: string
@@ -40,6 +40,7 @@ export type Database = {
         Update: {
           allocated_hours?: number | null
           created_at?: string | null
+          deleted_at?: string | null
           end_time?: string | null
           id?: string
           organization_id?: string
@@ -57,50 +58,47 @@ export type Database = {
           },
         ]
       }
-      comments: {
+      invites: {
         Row: {
-          content: string
+          accepted_at: string | null
+          content: string | null
           created_at: string | null
+          declined_at: string | null
+          expires_at: string
           id: string
+          invite_email: string
+          inviter_id: string
           organization_id: string
-          project_id: string | null
-          task_id: string
-          user_id: string | null
+          status: string
+          token: string
         }
         Insert: {
-          content: string
+          accepted_at?: string | null
+          content?: string | null
           created_at?: string | null
+          declined_at?: string | null
+          expires_at: string
           id?: string
+          invite_email: string
+          inviter_id: string
           organization_id: string
-          project_id?: string | null
-          task_id: string
-          user_id?: string | null
+          status?: string
+          token: string
         }
         Update: {
-          content?: string
+          accepted_at?: string | null
+          content?: string | null
           created_at?: string | null
+          declined_at?: string | null
+          expires_at?: string
           id?: string
+          invite_email?: string
+          inviter_id?: string
           organization_id?: string
-          project_id?: string | null
-          task_id?: string
-          user_id?: string | null
+          status?: string
+          token?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "comments_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "comments_task_id_fkey"
-            columns: ["task_id"]
-            isOneToOne: false
-            referencedRelation: "tasks"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       manager_employees: {
         Row: {
@@ -148,63 +146,6 @@ export type Database = {
           },
         ]
       }
-      invites: {
-        Row: {
-          accepted_at: string | null
-          content: string
-          created_at: string | null
-          declined_at: string | null
-          expires_at: string
-          id: string
-          invite_email: string
-          inviter_id: string
-          organization_id: string
-          status: string
-          token: string
-        }
-        Insert: {
-          accepted_at?: string | null
-          content: string
-          created_at?: string | null
-          declined_at?: string | null
-          expires_at: string
-          id?: string
-          invite_email: string
-          inviter_id: string
-          organization_id: string
-          status?: string
-          token: string
-        }
-        Update: {
-          accepted_at?: string | null
-          content?: string
-          created_at?: string | null
-          declined_at?: string | null
-          expires_at?: string
-          id?: string
-          invite_email?: string
-          inviter_id?: string
-          organization_id?: string
-          status?: string
-          token?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "invites_inviter_id_fkey"
-            columns: ["inviter_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invites_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       messages: {
         Row: {
           content: string
@@ -212,7 +153,6 @@ export type Database = {
           deleted_at: string | null
           id: string
           organization_id: string
-          project_id: string | null
           recipient_id: string | null
           sender_id: string
         }
@@ -222,7 +162,6 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           organization_id: string
-          project_id?: string | null
           recipient_id?: string | null
           sender_id: string
         }
@@ -232,7 +171,6 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           organization_id?: string
-          project_id?: string | null
           recipient_id?: string | null
           sender_id?: string
         }
@@ -242,13 +180,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "messages_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
           {
@@ -464,37 +395,40 @@ export type Database = {
       tasks: {
         Row: {
           created_at: string | null
-          created_by: string | null
+          created_by: string
           deleted_at: string | null
           description: string | null
           due_date: string | null
           id: string
           organization_id: string
           project_id: string | null
+          start_date: string | null
           status: Database["public"]["Enums"]["task_status"] | null
           title: string
         }
         Insert: {
           created_at?: string | null
-          created_by?: string | null
+          created_by: string
           deleted_at?: string | null
           description?: string | null
           due_date?: string | null
           id?: string
           organization_id: string
           project_id?: string | null
+          start_date?: string | null
           status?: Database["public"]["Enums"]["task_status"] | null
           title: string
         }
         Update: {
           created_at?: string | null
-          created_by?: string | null
+          created_by?: string
           deleted_at?: string | null
           description?: string | null
           due_date?: string | null
           id?: string
           organization_id?: string
           project_id?: string | null
+          start_date?: string | null
           status?: Database["public"]["Enums"]["task_status"] | null
           title?: string
         }
@@ -528,20 +462,85 @@ export type Database = {
     }
     Functions: {
       accept_invite: { Args: { invite_id: string }; Returns: undefined }
+      can_access_project: {
+        Args: { org_uuid: string; project_uuid: string }
+        Returns: boolean
+      }
+      can_access_task: {
+        Args: { org_uuid: string; task_uuid: string }
+        Returns: boolean
+      }
       is_manager: { Args: { org: string }; Returns: boolean }
-      is_org_member: { Args: { org: string }; Returns: boolean }
-      list_projects_with_meta: {
-        Args: { org_uuid: string; page_size: number; page_offset: number }
-        Returns: Array<{
+      is_org_admin: { Args: { org_id: string }; Returns: boolean }
+      is_org_member: { Args: { org_id: string }; Returns: boolean }
+      list_project_tasks_with_meta: {
+        Args: { org_uuid: string; project_uuid: string }
+        Returns: {
+          assignee_id: string
+          assignee_name: string
+          created_at: string
+          created_by: string
+          deleted_at: string
+          description: string
+          due_date: string
           id: string
-          name: string
-          status: string | null
-          start_date: string | null
-          end_date: string | null
-          member_count: number | null
-          completed: number | null
-          total: number | null
-        }>
+          organization_id: string
+          project_id: string
+          start_date: string
+          status: Database["public"]["Enums"]["task_status"]
+          title: string
+          total_count: number
+        }[]
+      }
+      list_projects_with_meta:
+        | {
+            Args: {
+              due_date_to?: string
+              org_uuid: string
+              page_offset: number
+              page_size: number
+              search_query?: string
+              start_date_from?: string
+            }
+            Returns: {
+              completed: number
+              end_date: string
+              id: string
+              member_count: number
+              name: string
+              start_date: string
+              status: string
+              total: number
+              total_count: number
+            }[]
+          }
+        | {
+            Args: {
+              due_date_to?: string
+              org_uuid: string
+              page_offset: number
+              page_size: number
+              search_query?: string
+              sort_by?: string
+              sort_order?: string
+              start_date_from?: string
+              status_filter?: string
+            }
+            Returns: {
+              completed: number
+              end_date: string
+              id: string
+              member_count: number
+              name: string
+              start_date: string
+              status: string
+              total: number
+              total_count: number
+            }[]
+          }
+      org_role: {
+        Args: { org_uuid: string }
+        Returns: Database["public"]["Enums"]["role_type"]
       }
     }
     Enums: {
@@ -668,7 +667,7 @@ export type CompositeTypes<
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]    
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never

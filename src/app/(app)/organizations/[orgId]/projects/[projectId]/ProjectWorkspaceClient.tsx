@@ -48,7 +48,7 @@ export type ProjectWorkspaceInitialData = {
   tasks: TaskWithAssignee[];
 };
 
-const desktopTasksTableGrid = "md:grid-cols-[48px_minmax(0,1.8fr)_220px_152px_132px]";
+const desktopTasksTableGrid = "md:grid-cols-[48px_minmax(0,1.8fr)_220px_152px_140px_140px]";
 
 type TaskRowProps = {
   task: TaskWithAssignee;
@@ -77,6 +77,7 @@ const TaskRow = memo(function TaskRow({
 }: TaskRowProps) {
   const [titleValue, setTitleValue] = useState(task.title);
   const [descriptionValue, setDescriptionValue] = useState(task.description ?? "");
+  const [startDateValue, setStartDateValue] = useState(task.start_date ?? "");
   const [dueDateValue, setDueDateValue] = useState(task.due_date ?? "");
 
   const fieldsDisabled = !canManage || deleteMode;
@@ -140,13 +141,18 @@ const TaskRow = memo(function TaskRow({
           disabled={fieldsDisabled}
           className={`mt-1 ${deleteMode ? "opacity-90" : ""}`}
         />
-        <div className="mt-1.5 flex items-center gap-3 text-xs text-zinc-500 md:hidden">
+        <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-zinc-500 md:hidden">
           <span
             className={`rounded px-2 py-0.5 text-xs font-medium ${getTaskStatusBadgeClass(task.status)} ${deleteMode ? "opacity-90" : ""}`}
           >
             {getTaskStatusLabel(task.status)}
           </span>
-          <span className={deleteMode ? "opacity-90" : ""}>{formatDueDate(task.due_date)}</span>
+          <span className={deleteMode ? "opacity-90" : ""}>
+            Start: {formatDateLabel(task.start_date, "No start date")}
+          </span>
+          <span className={deleteMode ? "opacity-90" : ""}>
+            Due: {formatDateLabel(task.due_date, "No due date")}
+          </span>
           {savingId === task.id && <span>Saving...</span>}
         </div>
       </div>
@@ -210,6 +216,22 @@ const TaskRow = memo(function TaskRow({
       <div className="hidden md:flex md:items-center md:gap-2">
         <input
           type="date"
+          value={startDateValue}
+          onChange={(e) => setStartDateValue(e.target.value)}
+          onBlur={(e) => {
+            onCommitUpdate(task.id, { start_date: e.target.value || null });
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur();
+          }}
+          disabled={fieldsDisabled}
+          className={`bg-transparent text-sm font-normal text-zinc-600 outline-none hover:text-zinc-900 disabled:cursor-default ${deleteMode ? "opacity-90" : ""}`}
+        />
+      </div>
+
+      <div className="hidden md:flex md:items-center md:gap-2">
+        <input
+          type="date"
           value={dueDateValue}
           onChange={(e) => setDueDateValue(e.target.value)}
           onBlur={(e) => {
@@ -226,8 +248,8 @@ const TaskRow = memo(function TaskRow({
   );
 });
 
-function formatDueDate(value: string | null) {
-  if (!value) return "No due date";
+function formatDateLabel(value: string | null, fallback: string) {
+  if (!value) return fallback;
   return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
@@ -263,14 +285,16 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | TaskStatus>("all");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
+  const [startDateFilter, setStartDateFilter] = useState<string>("");
   const [dueDateFilter, setDueDateFilter] = useState<string>("");
-  const [sortBy, setSortBy] = useState<"title" | "status" | "due_date">("title");
+  const [sortBy, setSortBy] = useState<"title" | "status" | "start_date" | "due_date">("title");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
   const [createDescription, setCreateDescription] = useState("");
+  const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState<string>("");
   
@@ -284,8 +308,6 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
 
   const orgMembersCacheRef = useRef<{ orgId: string; members: HumanResource[] } | null>(null);
-  const PAGE_SIZE = 12;
-  const tasksCountRef = useRef(0);
   const fetchOrgMembers = useCallback(async () => {
     if (orgMembersCacheRef.current?.orgId === orgId) {
       setEmployees(orgMembersCacheRef.current.members);
@@ -350,6 +372,9 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
         result = result.filter(t => t.assignee_id === assigneeFilter);
       }
     }
+    if (startDateFilter) {
+      result = result.filter(t => t.start_date === startDateFilter);
+    }
     if (dueDateFilter) {
       result = result.filter(t => t.due_date === dueDateFilter);
     }
@@ -367,7 +392,7 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
       if (valA > valB) return sortOrder === "asc" ? 1 : -1;
       return 0;
     });
-  }, [tasks, searchQuery, statusFilter, assigneeFilter, dueDateFilter, sortBy, sortOrder]);
+  }, [tasks, searchQuery, statusFilter, assigneeFilter, startDateFilter, dueDateFilter, sortBy, sortOrder]);
 
   function handleSort(column: typeof sortBy) {
     if (sortBy === column) {
@@ -462,9 +487,20 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
 
     try {
       setCreating(true);
-      const created = await createTask(title.trim(), createDescription.trim() || undefined, dueDate, orgId, projectId);
+      const created = await createTask(title.trim(), createDescription.trim() || undefined,startDate, dueDate, orgId, projectId);
+      
+      const optionalUpdates: TablesUpdate<"tasks"> = {};
+      if (startDate) {
+        optionalUpdates.start_date = startDate;
+      }
+
+      if (Object.keys(optionalUpdates).length > 0) {
+        await updateTask(created.id, optionalUpdates, orgId);
+      }
+
       const newTask: TaskWithAssignee = {
         ...created,
+        start_date: startDate || null,
         assignee_id: null,
         assignee_name: null,
       };
@@ -478,6 +514,7 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
       setTasks((prev) => [newTask, ...prev]);
       setTitle("");
       setCreateDescription("");
+      setStartDate("");
       setDueDate("");
       setSelectedEmployee("");
       setShowCreate(false);
@@ -630,12 +667,20 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
           ))}
         </select>
 
-        <input
-          type="date"
-          value={dueDateFilter}
-          onChange={(e) => setDueDateFilter(e.target.value)}
-          className="h-9 w-[150px] cursor-pointer rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500"
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={startDateFilter}
+            onChange={(e) => setStartDateFilter(e.target.value)}
+            className="h-9 w-[140px] cursor-pointer rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+          />
+          <input
+            type="date"
+            value={dueDateFilter}
+            onChange={(e) => setDueDateFilter(e.target.value)}
+            className="h-9 w-[140px] cursor-pointer rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+          />
+        </div>
       </div>
 
       {canManage && (
@@ -720,6 +765,12 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
               Status {SortIcon("status")}
             </div>
             <div
+              onClick={() => handleSort("start_date")}
+              className="flex cursor-pointer select-none items-center gap-1 hover:text-zinc-800"
+            >
+              Start Date {SortIcon("start_date")}
+            </div>
+            <div
               onClick={() => handleSort("due_date")}
               className="flex cursor-pointer select-none items-center gap-1 hover:text-zinc-800"
             >
@@ -755,7 +806,7 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
           <div className="divide-y divide-zinc-100">
             {filteredTasks.map((task) => (
               <TaskRow
-                key={`${task.id}-${task.title}-${task.description ?? ""}-${task.due_date ?? ""}`}
+                key={`${task.id}-${task.title}-${task.description ?? ""}-${task.start_date ?? ""}-${task.due_date ?? ""}`}
                 task={task}
                 canManage={canManage}
                 canEditStatus={canEditTask(role, {
@@ -815,6 +866,19 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
               onChange={(e) => setTitle(e.target.value)}
               className="h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 shadow-sm outline-none transition-[border-color,box-shadow] placeholder:text-zinc-400 hover:border-zinc-300 focus:border-transparent focus:ring-2 focus:ring-indigo-500"
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-600">Start date</label>
+            <div className="relative">
+              <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="h-9 w-full rounded-md border border-zinc-200 bg-white pl-9 pr-3 text-sm text-zinc-900 shadow-sm outline-none transition-[border-color,box-shadow] hover:border-zinc-300 focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
           </div>
 
           <div className="space-y-1.5">

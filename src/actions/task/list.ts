@@ -31,6 +31,7 @@ export async function listTasks(employeeId: string) {
             id: row.task.id,
             title: row.task.title,
             status: row.task.status,
+            
             due_date: null,
             deleted_at: null,
           }

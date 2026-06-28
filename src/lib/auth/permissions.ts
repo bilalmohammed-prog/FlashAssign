@@ -173,6 +173,7 @@ export function can(
 export type TaskUpdateFields = {
   title?: string | null;
   description?: string | null;
+  start_date?: string | null;
   due_date?: string | null;
   status?: string | null;
   project_id?: string | null;

@@ -44,6 +44,8 @@ type RawTask = {
   task?: string;
   description?: string | null;
   status?: string;
+  start_date?: string | null;
+  startDate?: string | null;
   due_date?: string | null;
   dueDate?: string | null;
   endTime?: string | null;

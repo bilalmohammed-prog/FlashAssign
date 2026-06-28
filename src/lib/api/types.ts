@@ -110,6 +110,7 @@ export const CreateTaskRequestSchema = z.object({
   organization_id: z.string(),
   title: z.string(),
   description: z.string().optional(),
+  startDate: z.string().optional(),
   dueDate: z.string().optional(),
   status: z.string().optional(),
 });
@@ -126,6 +127,7 @@ export type CreateTaskResponse = z.infer<typeof CreateTaskResponseSchema>;
 export const UpdateTaskRequestSchema = z.object({
   title: z.string().optional(),
   description: z.string().optional(),
+  startDate: z.string().optional(),
   dueDate: z.string().optional(),
   status: z
     .enum(['todo', 'in_progress', 'blocked', 'done', 'pending', 'in-progress', 'completed'])

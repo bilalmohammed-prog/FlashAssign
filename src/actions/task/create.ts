@@ -15,12 +15,14 @@ import {
 export async function createTask(
   title: string,
   description: string | undefined,
+  startDate: string | null,
   dueDate: string | null,
   orgId: string,
   project_id: string | null
 ): Promise<Tables<"tasks">> {
   const validatedTitle = nonEmptyStringSchema.parse(title);
   const validatedDescription = optionalTextSchema.optional().parse(description);
+  const validatedStartDate = isoDateStringSchema.nullable().optional().parse(startDate);
   const validatedDueDate = isoDateStringSchema.nullable().optional().parse(dueDate);
   const validatedOrgId = uuidSchema.parse(orgId);
   const validatedProjectId = project_id != null ? uuidSchema.parse(project_id) : null;
@@ -31,6 +33,7 @@ export async function createTask(
   const result = await createTaskService(ctx.supabase, {
     organizationId: ctx.organizationId,
     projectId: validatedProjectId,
+    startDate: validatedStartDate ?? undefined,
     createdBy: ctx.user.id,
     title: validatedTitle,
     description: validatedDescription,
