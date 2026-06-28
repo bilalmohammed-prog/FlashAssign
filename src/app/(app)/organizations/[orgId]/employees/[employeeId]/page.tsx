@@ -31,6 +31,7 @@ type EmployeeTask = {
   title: string;
   status: TaskStatus | null;
   description: string | null;
+  start_date: string | null;
   due_date: string | null;
   project_id: string | null;
   allocated_hours: number | null;
@@ -55,6 +56,7 @@ type EmployeeTaskRowProps = {
   onTitleCommit: (taskId: string, nextTitle: string) => void;
   onDescriptionCommit: (taskId: string, nextDescription: string) => void;
   onStatusChange: (taskId: string, status: TaskStatus) => void;
+  onStartDateChange: (taskId: string, nextStartDate: string) => void;
   onDueDateChange: (taskId: string, nextDueDate: string) => void;
   onProjectChange: (taskId: string, projectId: string | null) => void;
 };
@@ -67,6 +69,7 @@ type TaskJoinRow = {
   due_date: string | null;
   project_id: string | null;
   deleted_at: string | null;
+  start_date: string | null;
 };
 
 type AssignmentTaskRow = {
@@ -88,6 +91,7 @@ function mapAssignmentRowsToEmployeeTasks(rows: AssignmentTaskRow[]): EmployeeTa
         title: joinedTask.title,
         status: joinedTask.status,
         description: joinedTask.description,
+        start_date: joinedTask.start_date,
         due_date: joinedTask.due_date,
         project_id: joinedTask.project_id,
         allocated_hours: row.allocated_hours,
@@ -118,6 +122,7 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
   onStatusChange,
   onDueDateChange,
   onProjectChange,
+  onStartDateChange,
 }: EmployeeTaskRowProps) {
   const gridClassName = "md:grid-cols-[48px_minmax(0,2fr)_200px_140px_140px]";
 
@@ -228,6 +233,7 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
           onChange={(event) => {
             onDraftUpdate(task.task_id, { due_date: event.target.value || null });
             onDueDateChange(task.task_id, event.target.value);
+            onStartDateChange(task.task_id, event.target.value);
           }}
           className={`h-8 w-full min-w-36 rounded-md border border-input bg-background px-3 text-xs ${deleteMode ? "opacity-85" : ""}`}
           disabled={fieldsDisabled}
@@ -260,6 +266,7 @@ export default function EmployeeTasksPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [startDate, setStartDate] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
@@ -294,7 +301,7 @@ export default function EmployeeTasksPage() {
         `
           task_id,
           allocated_hours,
-            tasks!inner(id, title, status, description, due_date, project_id, deleted_at)
+            tasks!inner(id, title, status, description,start_date, due_date, project_id, deleted_at)
         `
       )
       .eq("organization_id", orgId)
@@ -472,7 +479,7 @@ export default function EmployeeTasksPage() {
   }, [canManage, cancelDeleteMode, deleteMode, employeeName, handleBulkDelete, selectedTaskIds.length, setPageHeader, tasks.length, toggleDeleteMode]);
 
   async function handleCreate() {
-    if (!title.trim() || !dueDate) {
+    if (!title.trim()) {
       return;
     }
 
@@ -481,6 +488,7 @@ export default function EmployeeTasksPage() {
       const created = await createTask(
         title.trim(),
         description.trim() || undefined,
+        startDate,
         dueDate,
         orgId,
         selectedProjectId || null
@@ -494,6 +502,7 @@ export default function EmployeeTasksPage() {
           title: created.title,
           status: created.status,
           description: created.description,
+          start_date: created.start_date,
           due_date: created.due_date,
           project_id: created.project_id,
           allocated_hours: null,
@@ -503,6 +512,7 @@ export default function EmployeeTasksPage() {
 
       setTitle("");
       setDescription("");
+      setStartDate("");
       setDueDate("");
       setSelectedProjectId("");
       setShowCreate(false);
@@ -561,6 +571,17 @@ export default function EmployeeTasksPage() {
       addToast("Failed to update due date", "error");
     }
   }
+  async function handleStartDateChange(taskId: string, nextStartDate: string) {
+    const previousTasks = tasks;
+    updateTaskInState(taskId, { start_date: nextStartDate || null });
+
+    try {
+      await updateTask(taskId, { start_date: nextStartDate || null }, orgId);
+    } catch {
+      setTasks(await fetchEmployeeTasks().catch(() => previousTasks));
+      addToast("Failed to update start date", "error");
+    }
+  }
 
   async function handleProjectChange(taskId: string, projectId: string | null) {
     const previousTasks = tasks;
@@ -613,6 +634,7 @@ export default function EmployeeTasksPage() {
                     onTitleCommit={handleTitleCommit}
                     onDescriptionCommit={handleDescriptionCommit}
                     onStatusChange={handleStatusChange}
+                    onStartDateChange={handleStartDateChange}
                     onDueDateChange={handleDueDateChange}
                     onProjectChange={handleProjectChange}
                   />
@@ -649,7 +671,15 @@ export default function EmployeeTasksPage() {
                 placeholder="Add task details"
               />
             </div>
-
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">Start date</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              />
+            </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground">Due date</label>
               <input
@@ -659,6 +689,8 @@ export default function EmployeeTasksPage() {
                 className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
               />
             </div>
+
+            
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground">Project (optional)</label>
@@ -684,7 +716,7 @@ export default function EmployeeTasksPage() {
               <Button variant="outline" onClick={() => setShowCreate(false)} disabled={creating}>
                 Cancel
               </Button>
-              <Button onClick={handleCreate} disabled={creating || !title.trim() || !dueDate}>
+              <Button onClick={handleCreate} disabled={creating || !title.trim() || !dueDate || !startDate}>
                 {creating ? "Creating..." : "Create"}
               </Button>
             </div>

@@ -312,7 +312,7 @@ export default function TeamTabsClient({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button
+          {/* <Button
             type="button"
             variant="outline"
             className="h-12 rounded-lg border-slate-200 bg-white px-5 text-base font-medium text-zinc-950 shadow-sm hover:bg-slate-50"
@@ -323,7 +323,7 @@ export default function TeamTabsClient({
               strokeWidth={2.1}
             />
             Send Message
-          </Button>
+          </Button> */}
           <Button
             type="button"
             className="h-12 rounded-lg bg-indigo-500 px-5 text-base font-semibold text-white shadow-sm hover:bg-indigo-600"

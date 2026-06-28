@@ -60,6 +60,7 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
   async function createTaskMutation(formData: FormData) {
     "use server";
     const title = String(formData.get("title") ?? "").trim();
+    const startDate = String(formData.get("startDate") ?? "");
     const dueDate = String(formData.get("dueDate") ?? "");
     const description = String(formData.get("description") ?? "");
     if (!title) return;
@@ -68,6 +69,7 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
     await createTask(
       title,
       description || undefined,
+      startDate || null,
       dueDate || null,
       orgCtx.organizationId,
       projectId
@@ -117,6 +119,7 @@ export default async function ProjectDetailPage({ params }: ProjectPageProps) {
         <CardContent>
           <form action={createTaskMutation} className="grid grid-cols-1 gap-3 md:grid-cols-4">
             <Input name="title" placeholder="Task title" required className="md:col-span-2" />
+            <Input type="date" name="startDate" />
             <Input type="date" name="dueDate" />
             <Input name="description" placeholder="Description (optional)" />
             <div className="md:col-span-4">

@@ -97,10 +97,6 @@ export async function createMessage(
     content,
   };
 
-  if (projectId) {
-    insertPayload.project_id = projectId;
-  }
-
   const insertStart = Date.now();
   const { data, error } = await supabase
     .from("messages")
@@ -141,7 +137,6 @@ export async function listMessages(
       .from("messages")
       .select("*")
       .eq("organization_id", params.organizationId)
-      .eq("project_id", projectId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
     console.info(`[perf] [DB] messaging.service listMessages project ${Date.now() - queryStart}ms`);
