@@ -20,10 +20,16 @@ export async function createTask(
   orgId: string,
   project_id: string | null
 ): Promise<Tables<"tasks">> {
+  const normalizedStartDate = startDate || null;
+const normalizedDueDate = dueDate || null;
+
+const validatedStartDate =
+  isoDateStringSchema.nullable().optional().parse(normalizedStartDate);
+
+const validatedDueDate =
+  isoDateStringSchema.nullable().optional().parse(normalizedDueDate);
   const validatedTitle = nonEmptyStringSchema.parse(title);
   const validatedDescription = optionalTextSchema.optional().parse(description);
-  const validatedStartDate = isoDateStringSchema.nullable().optional().parse(startDate);
-  const validatedDueDate = isoDateStringSchema.nullable().optional().parse(dueDate);
   const validatedOrgId = uuidSchema.parse(orgId);
   const validatedProjectId = project_id != null ? uuidSchema.parse(project_id) : null;
 

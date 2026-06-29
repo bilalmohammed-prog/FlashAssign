@@ -3,11 +3,11 @@ import { requireOrgContext } from "@/actions/_helpers/requireOrgContext";
 import ProjectWorkspaceClient, {
   type ProjectWorkspaceInitialData,
 } from "./ProjectWorkspaceClient";
-import { getTasksByProject } from "@/services/task/task.service";
 import type { Tables } from "@/lib/types/database";
 
 type ProjectWorkspacePageProps = {
   params: Promise<{ orgId: string; projectId: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>; 
 };
 
 type ProjectRecord = Pick<Tables<"projects">, "id" | "name" | "organization_id">;
@@ -20,19 +20,14 @@ type ProjectMemberRow = {
   left_at: string | null;
 };
 
-type AssignmentRow = {
-  task_id: string;
-  user_id: string;
-  created_at: string | null;
-};
-
 type ProfileRow = {
   id: string;
   full_name: string | null;
 };
 
-export default async function ProjectWorkspacePage({ params }: ProjectWorkspacePageProps) {
+export default async function ProjectWorkspacePage({ params, searchParams }: ProjectWorkspacePageProps) {
   const { orgId, projectId } = await params;
+  const { assignee, status } = await searchParams;
 
   console.time("[Page] project workspace total");
   console.time("[Fetch] project workspace requireOrgContext");
@@ -48,11 +43,27 @@ export default async function ProjectWorkspacePage({ params }: ProjectWorkspaceP
     .eq("organization_id", tenant.organizationId)
     .is("deleted_at", null)
     .maybeSingle<ProjectRecord>();
+// 1. Array check to handle Next.js query parameter arrays safely
+const statusString = Array.isArray(status) ? status[0] : status;
 
-  const tasksPromise = getTasksByProject(tenant.supabase, {
-    organizationId: tenant.organizationId,
-    projectId,
-  });
+// 2. Validate against your strict database enum options
+const validStatuses = ["todo", "in_progress", "blocked", "done"] as const;
+const statusFilterValue = validStatuses.includes(statusString as typeof validStatuses[number])
+  ? (statusString as typeof validStatuses[number])
+  : undefined;
+
+// 3. Pass it to your promise call
+const tasksPromise = tenant.supabase.rpc("list_project_tasks_with_meta", {
+  org_uuid: tenant.organizationId,
+  project_uuid: projectId,
+  sort_by: "title",
+  sort_order: "asc",
+  page_size: 10,
+  assignee_filter: typeof assignee === "string" && assignee !== "all" ? assignee : undefined,
+  status_filter: statusFilterValue, // Perfectly typed now
+});
+  // Fetch tasks and metadata directly through the new RPC
+
 
   const membersPromise = tenant.supabase
     .from("project_members")
@@ -72,6 +83,9 @@ export default async function ProjectWorkspacePage({ params }: ProjectWorkspaceP
   if (projectResult.error) {
     throw new Error(projectResult.error.message);
   }
+  if (tasksResult.error) {
+    throw new Error(tasksResult.error.message);
+  }
   if (membersResult.error) {
     throw new Error(membersResult.error.message);
   }
@@ -81,38 +95,9 @@ export default async function ProjectWorkspacePage({ params }: ProjectWorkspaceP
     notFound();
   }
 
-  const tasks = tasksResult ?? [];
+  const tasks = tasksResult.data ?? [];
   const projectMemberRows = (membersResult.data ?? []) as ProjectMemberRow[];
-  const taskIds = tasks.map((task) => task.id);
-
-  // POTENTIAL WATERFALL
-  // Assignment hydration depends on the initial task list, but still stays on the server path.
-  console.time("[DB] project workspace assignee assignments");
-  const assignmentsResult =
-    taskIds.length > 0
-      ? await tenant.supabase
-          .from("assignments")
-          .select("task_id,user_id,created_at")
-          .eq("organization_id", tenant.organizationId)
-          .in("task_id", taskIds)
-          .order("created_at", { ascending: false })
-      : { data: [], error: null };
-  console.timeEnd("[DB] project workspace assignee assignments");
-
-  if (assignmentsResult.error) {
-    throw new Error(assignmentsResult.error.message);
-  }
-
-  const assignmentRows = (assignmentsResult.data ?? []) as AssignmentRow[];
-  const taskAssigneeById = new Map<string, string>();
   const profileIds = new Set<string>();
-
-  for (const row of assignmentRows) {
-    if (!taskAssigneeById.has(row.task_id)) {
-      taskAssigneeById.set(row.task_id, row.user_id);
-      profileIds.add(row.user_id);
-    }
-  }
 
   for (const row of projectMemberRows) {
     profileIds.add(row.user_id);
@@ -143,16 +128,6 @@ export default async function ProjectWorkspacePage({ params }: ProjectWorkspaceP
     user_id: member.user_id,
     name: profileNameById.get(member.user_id) ?? "",
   }));
-
-  const initialTasks = tasks.map((task) => {
-    const assigneeId = taskAssigneeById.get(task.id) ?? null;
-    return {
-      ...task,
-      assignee_id: assigneeId,
-      assignee_name: assigneeId ? profileNameById.get(assigneeId) ?? null : null,
-    };
-  });
-
   console.timeEnd("[Compute] project workspace hydrate");
   console.timeEnd("[Page] project workspace total");
 
@@ -163,7 +138,8 @@ export default async function ProjectWorkspacePage({ params }: ProjectWorkspaceP
     role: tenant.role,
     userId: tenant.userId,
     projectMembers,
-    tasks: initialTasks,
+    tasks,
+    initialStatusFilter: statusFilterValue,
   };
 
   return <ProjectWorkspaceClient initialData={initialData} />;

@@ -58,22 +58,49 @@ export async function createTask(
 
 export async function getTasksByProject(
   supabase: SupabaseClient<Database>,
-  params: { organizationId: string; projectId: string }
-): Promise<Tables<"tasks">[]> {
-  console.time("[DB] workspace tasks query");
-  const { data, error } = await supabase
-    .from("tasks")
-    .select(
-      "id,title,description,start_date,due_date,status,organization_id,project_id,created_by,created_at,deleted_at"
-    )
-    .eq("organization_id", params.organizationId)
-    .eq("project_id", params.projectId)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-  console.timeEnd("[DB] workspace tasks query");
+  params: {
+    organizationId: string;
+    projectId: string;
+
+    searchQuery?: string | null;
+    statusFilter?: "todo" | "in_progress" | "blocked" | "done" | null;
+    assigneeFilter?: string | null;
+    startDateFrom?: string | null;
+    dueDateTo?: string | null;
+
+    sortBy?: "title" | "start_date" | "due_date" | "created_at";
+    sortOrder?: "asc" | "desc";
+
+    pageSize?: number;
+    pageOffset?: number;
+  }
+) {
+  console.time("[DB] workspace tasks rpc");
+
+  const { data, error } = await supabase.rpc("list_project_tasks_with_meta", {
+    org_uuid: params.organizationId,
+    project_uuid: params.projectId,
+
+    search_query: params.searchQuery ?? undefined,
+    status_filter: params.statusFilter ?? undefined,
+    assignee_filter: params.assigneeFilter ?? undefined,
+    start_date_from: params.startDateFrom ?? undefined,
+    due_date_to: params.dueDateTo ?? undefined,
+
+    sort_by: params.sortBy ?? "created_at",
+    sort_order: params.sortOrder ?? "desc",
+
+    page_size: params.pageSize ?? 25,
+    page_offset: params.pageOffset ?? 0,
+  });
+
+  console.timeEnd("[DB] workspace tasks rpc");
 
   if (error) {
-    throw new ValidationError({ message: error.message, details: error });
+    throw new ValidationError({
+      message: error.message,
+      details: error,
+    });
   }
 
   return data ?? [];

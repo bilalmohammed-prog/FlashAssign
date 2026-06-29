@@ -5,7 +5,7 @@ export type Json =
   | null
   | { [key: string]: Json | undefined }
   | Json[]
-
+  
 export type UUID = string;
 
 export type Database = {
@@ -534,25 +534,87 @@ export type Database = {
       is_manager: { Args: { org: string }; Returns: boolean }
       is_org_admin: { Args: { org_id: string }; Returns: boolean }
       is_org_member: { Args: { org_id: string }; Returns: boolean }
-      list_project_tasks_with_meta: {
-        Args: { org_uuid: string; project_uuid: string }
-        Returns: {
-          assignee_id: string
-          assignee_name: string
-          created_at: string
-          created_by: string
-          deleted_at: string
-          description: string
-          due_date: string
-          id: string
-          organization_id: string
-          project_id: string
-          start_date: string
-          status: Database["public"]["Enums"]["task_status"]
-          title: string
-          total_count: number
-        }[]
-      }
+      list_project_tasks_with_meta:
+        | {
+            Args: { org_uuid: string; project_uuid: string }
+            Returns: {
+              assignee_id: string
+              assignee_name: string
+              created_at: string
+              created_by: string
+              deleted_at: string
+              description: string
+              due_date: string
+              id: string
+              organization_id: string
+              project_id: string
+              start_date: string
+              status: Database["public"]["Enums"]["task_status"]
+              title: string
+              total_count: number
+            }[]
+          }
+        | {
+            Args: {
+              assignee_filter?: string
+              due_date_to?: string
+              org_uuid: string
+              page_offset?: number
+              page_size?: number
+              project_uuid: string
+              search_query?: string
+              sort_by?: string
+              sort_order?: string
+              start_date_from?: string
+              status_filter?: Database["public"]["Enums"]["task_status"]
+            }
+            Returns: {
+              assignee_id: string
+              assignee_name: string
+              created_at: string
+              created_by: string
+              description: string
+              due_date: string
+              id: string
+              organization_id: string
+              project_id: string
+              start_date: string
+              status: string
+              title: string
+              total_count: number
+            }[]
+          }
+        | {
+            Args: {
+              assignee_filter?: string
+              due_date_to?: string
+              org_uuid: string
+              page_offset?: number
+              page_size?: number
+              project_uuid: string
+              search_query?: string
+              sort_by?: string
+              sort_order?: string
+              start_date_from?: string
+              status_filter?: Database["public"]["Enums"]["task_status"]
+              unassigned_only?: boolean
+            }
+            Returns: {
+              assignee_id: string
+              assignee_name: string
+              created_at: string
+              created_by: string
+              description: string
+              due_date: string
+              id: string
+              organization_id: string
+              project_id: string
+              start_date: string
+              status: string
+              title: string
+              total_count: number
+            }[]
+          }
       list_projects_with_meta:
         | {
             Args: {

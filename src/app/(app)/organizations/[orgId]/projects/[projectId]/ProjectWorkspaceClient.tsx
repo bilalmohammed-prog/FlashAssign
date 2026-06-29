@@ -13,7 +13,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import type { Enums, Tables, TablesUpdate } from "@/lib/types/database";
+import type { Enums, TablesUpdate } from "@/lib/types/database";
 import { updateTask } from "@/actions/task/update";
 import { createTask } from "@/actions/task/create";
 import { deleteTask as deleteTaskAction } from "@/actions/task/delete";
@@ -30,13 +30,35 @@ import { TaskSelectionIndicator } from "@/components/tasks/TaskSelectionIndicato
 import { useToast } from "@/components/providers/toast";
 import type { AppRole } from "@/lib/auth/permissions";
 import { getWorkspaceCapabilities, canEditTask } from "@/lib/auth/ui-capabilities";
+import { supabase } from "@/lib/supabase/client";
 
-type TaskWithAssignee = Tables<"tasks"> & {
+export type ProjectTaskRpc = {
+  id: string;
+  organization_id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  start_date: string | null;
+  due_date: string | null;
+  created_by: string;
+  created_at: string;
+
   assignee_id: string | null;
   assignee_name: string | null;
+
+  total_count: number;
 };
 
-type TaskPatch = Partial<TaskWithAssignee>;
+type TaskPatch = {
+  title?: string;
+  description?: string | null;
+  status?: TaskStatus;
+  start_date?: string | null;
+  due_date?: string | null;
+  assignee_id?: string | null;
+  assignee_name?: string | null;
+};
 type TaskStatus = Enums<"task_status">;
 type HumanResource = { user_id: string; name: string; };
 
@@ -47,13 +69,16 @@ export type ProjectWorkspaceInitialData = {
   role: AppRole;
   userId: string;
   projectMembers: HumanResource[];
-  tasks: TaskWithAssignee[];
+  tasks: ProjectTaskRpc[];
+  initialAssigneeFilter?: string; // Add this
+  initialStatusFilter?: string;   // Add this
 };
 
+const PAGE_SIZE = 10;
 const desktopTasksTableGrid = "md:grid-cols-[48px_minmax(0,1.8fr)_220px_152px_140px_140px_48px]";
 
 type TaskRowProps = {
-  task: TaskWithAssignee;
+  task: ProjectTaskRpc;
   canManage: boolean;
   canEditStatus: boolean;
   deleteMode: boolean;
@@ -81,7 +106,7 @@ const TaskRow = memo(function TaskRow({
   const [descriptionValue, setDescriptionValue] = useState(task.description ?? "");
   const [startDateValue, setStartDateValue] = useState(task.start_date ?? "");
   const [dueDateValue, setDueDateValue] = useState(task.due_date ?? "");
-
+  
   const fieldsDisabled = !canManage || deleteMode;
   const statusDisabled = deleteMode || (!canManage && !canEditStatus);
   const rowClassName = selectedForDelete
@@ -104,7 +129,9 @@ const TaskRow = memo(function TaskRow({
           value={titleValue}
           onChange={(e) => setTitleValue(e.target.value)}
           onBlur={(e) => {
-            onCommitUpdate(task.id, { title: e.target.value });
+            if (e.target.value !== task.title) {
+              onCommitUpdate(task.id, { title: e.target.value });
+            }
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur();
@@ -122,7 +149,9 @@ const TaskRow = memo(function TaskRow({
           value={descriptionValue}
           onChange={(nextValue) => setDescriptionValue(nextValue)}
           onCommit={(nextValue) => {
-            onCommitUpdate(task.id, { description: nextValue.trim() ? nextValue : null });
+            if (nextValue !== (task.description ?? "")) {
+              onCommitUpdate(task.id, { description: nextValue.trim() ? nextValue : null });
+            }
           }}
           disabled={fieldsDisabled}
           className={`mt-1 ${selectedForDelete ? "opacity-90" : ""}`}
@@ -144,40 +173,23 @@ const TaskRow = memo(function TaskRow({
       </div>
 
       <div className="flex w-full items-center gap-2.5">
-        {task.assignee_name ? (
-          <select
-            value={task.assignee_id || ""}
-            onChange={(e) => onAssign(task.id, e.target.value)}
-            disabled={fieldsDisabled}
-            className={`min-w-0 flex-1 appearance-none bg-transparent text-sm font-medium text-zinc-900 outline-none disabled:cursor-default ${selectedForDelete ? "opacity-90" : ""}`}
-          >
-            <option value="">Unassigned</option>
-            {projectMembers.map((employee) => (
-              <option key={employee.user_id} value={employee.user_id}>
-                {employee.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <div className="flex w-full items-center gap-2.5">
-            <span className="flex items-center gap-1.5 text-sm font-medium italic text-zinc-400">
-              <AlertCircle className="h-4 w-4" />
-              Unassigned
-            </span>
-            <select
-              value={task.assignee_id || ""}
-              onChange={(e) => onAssign(task.id, e.target.value)}
-              disabled={fieldsDisabled}
-              className={`min-w-0 flex-1 appearance-none bg-transparent text-sm text-zinc-500 outline-none disabled:cursor-default ${selectedForDelete ? "opacity-90" : ""}`}
-            >
-              <option value="">Unassigned</option>
-              {projectMembers.map((employee) => (
-                <option key={employee.user_id} value={employee.user_id}>
-                  {employee.name}
-                </option>
-              ))}
-            </select>
-          </div>
+        <select
+          value={task.assignee_id || ""}
+          onChange={(e) => onAssign(task.id, e.target.value)}
+          disabled={fieldsDisabled}
+          className={`min-w-0 flex-1 appearance-none bg-transparent text-sm font-medium text-zinc-900 outline-none disabled:cursor-default ${selectedForDelete ? "opacity-90" : ""}`}
+        >
+          <option value="">Unassigned</option>
+          {projectMembers.map((employee) => (
+            <option key={employee.user_id} value={employee.user_id}>
+              {employee.name}
+            </option>
+          ))}
+        </select>
+        {!task.assignee_id && (
+          <span className="pointer-events-none absolute right-4 flex items-center gap-1.5 text-sm font-medium italic text-zinc-400 md:relative md:right-auto">
+            <AlertCircle className="h-4 w-4" />
+          </span>
         )}
       </div>
 
@@ -205,7 +217,9 @@ const TaskRow = memo(function TaskRow({
           value={startDateValue}
           onChange={(e) => setStartDateValue(e.target.value)}
           onBlur={(e) => {
-            onCommitUpdate(task.id, { start_date: e.target.value || null });
+            if (e.target.value !== (task.start_date ?? "")) {
+              onCommitUpdate(task.id, { start_date: e.target.value || null });
+            }
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur();
@@ -221,7 +235,9 @@ const TaskRow = memo(function TaskRow({
           value={dueDateValue}
           onChange={(e) => setDueDateValue(e.target.value)}
           onBlur={(e) => {
-            onCommitUpdate(task.id, { due_date: e.target.value || null });
+            if (e.target.value !== (task.due_date ?? "")) {
+              onCommitUpdate(task.id, { due_date: e.target.value || null });
+            }
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur();
@@ -256,14 +272,14 @@ function formatDateLabel(value: string | null, fallback: string) {
   return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function getTaskStatusLabel(status: TaskStatus | null) {
+function getTaskStatusLabel(status: string | null) {
   if (status === "in_progress") return "In Progress";
   if (status === "done") return "Completed";
   if (status === "blocked") return "Blocked";
   return "To Do";
 }
 
-function getTaskStatusBadgeClass(status: TaskStatus | null) {
+function getTaskStatusBadgeClass(status: string | null) {
   if (status === "done") return "bg-emerald-50 text-emerald-700 border-emerald-200/60";
   if (status === "in_progress") return "bg-indigo-50 text-indigo-700 border-indigo-200/60";
   if (status === "blocked") return "bg-amber-50 text-amber-700 border-amber-200/60";
@@ -273,7 +289,7 @@ function getTaskStatusBadgeClass(status: TaskStatus | null) {
 export default function ProjectWorkspaceClient({ initialData }: { initialData: ProjectWorkspaceInitialData }) {
   const { addToast } = useToast();
   const { setPageHeader } = usePageHeader();
-
+  
   const { orgId, projectId, projectName, role, userId } = initialData;
   const capabilities = getWorkspaceCapabilities(role);
   const canManage = capabilities.canManageTasks;
@@ -282,17 +298,29 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
   const [employees, setEmployees] = useState<HumanResource[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [tasks, setTasks] = useState<TaskWithAssignee[]>(initialData.tasks);
   
-  // Local Filtering & Sorting State
+  // Pagination & Server State
+  const [tasks, setTasks] = useState<ProjectTaskRpc[]>(initialData.tasks);
+  const [totalCount, setTotalCount] = useState(initialData.tasks[0]?.total_count ?? 0);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(initialData.tasks.length < (initialData.tasks[0]?.total_count ?? 0));
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(false);
+
+  // Filter & Sort State
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | TaskStatus>("all");
-  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | TaskStatus>(
+  (initialData.initialStatusFilter as "all" | TaskStatus) || "all"
+);
+const [assigneeFilter, setAssigneeFilter] = useState<string>(
+  initialData.initialAssigneeFilter || "all"
+);
   const [startDateFilter, setStartDateFilter] = useState<string>("");
   const [dueDateFilter, setDueDateFilter] = useState<string>("");
   const [sortBy, setSortBy] = useState<"title" | "status" | "start_date" | "due_date">("title");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
+  // Modals / Helpers
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
@@ -309,8 +337,138 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
   const [savingMembers, setSavingMembers] = useState(false);
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
-
+  const hasMoreRef = useRef(hasMore);
+  const initialLoadingRef = useRef(initialLoading);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const orgMembersCacheRef = useRef<{ orgId: string; members: HumanResource[] } | null>(null);
+  const loadingMoreRef = useRef(false);
+  const addToastRef = useRef(addToast);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => { addToastRef.current = addToast; }, [addToast]);
+
+// Fix: initialize to actual loaded count
+const offsetRef = useRef(initialData.tasks.length);
+  // Core API Fetching Method mapped to RPC
+  const fetchTasks = useCallback(async (offset: number, append = false) => {
+  if (append && loadingMoreRef.current) return;
+
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+
+  if (!append) {
+    initialLoadingRef.current = true;
+    setInitialLoading(true);
+    offsetRef.current = 0;
+  } else {
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+  }
+
+  try {
+    
+    const { data, error } = await supabase.rpc("list_project_tasks_with_meta", {
+      org_uuid: orgId,
+      project_uuid: projectId,
+      page_size: PAGE_SIZE,
+      page_offset: offset,
+      search_query: searchQuery || undefined,
+      status_filter: statusFilter !== "all" ? statusFilter : undefined,
+      assignee_filter: assigneeFilter !== "all" && assigneeFilter !== "unassigned" ? assigneeFilter : undefined,
+      unassigned_only: assigneeFilter === "unassigned",
+      start_date_from: startDateFilter || undefined,
+      due_date_to: dueDateFilter || undefined,
+      sort_by: sortBy,
+      sort_order: sortOrder,
+    });
+    if (data) {
+  console.log({
+    requested: {
+      page_size: PAGE_SIZE,
+      page_offset: offset,
+    },
+    returned: data.length,
+    total: data[0]?.total_count,
+  });
+}
+console.table(
+  (data ?? []).map((t, i) => ({
+    i,
+    id: t.id,
+    title: t.title,
+  }))
+);
+console.log({
+  page_size: PAGE_SIZE,
+  page_offset: offset,
+});
+console.log("RPC returned", {
+  error,
+  rows: data?.length,
+});
+    if (error) throw error;
+
+    const fetchedTasks = data ?? [];
+    const count = fetchedTasks[0]?.total_count ?? 0;
+    const newOffset = offset + fetchedTasks.length;
+
+    offsetRef.current = newOffset;
+    hasMoreRef.current = newOffset < count;
+
+    setTasks((prev) => (append ? [...prev, ...fetchedTasks] : fetchedTasks));
+    setTotalCount(count);
+    setHasMore(newOffset < count);
+  } catch (err) {
+    console.error(err);
+    addToastRef.current("Failed to load workspace tasks", "error");
+  } finally {
+    initialLoadingRef.current = false;
+    setInitialLoading(false);
+    setLoadingMore(false);
+    loadingMoreRef.current = false;
+  }
+// addToast removed — use addToastRef.current inside instead
+}, [orgId, projectId, searchQuery, statusFilter, assigneeFilter, startDateFilter, dueDateFilter, sortBy, sortOrder]);
+
+  // Handle updates to server queries across filters
+  useEffect(() => {
+  if (isFirstRender.current) {
+    isFirstRender.current = false;
+    return; // trust SSR data on mount
+  }
+  offsetRef.current = 0;
+  void fetchTasks(0, false);
+}, [fetchTasks]);
+
+  // Infinite Scroll IntersectionObserver hook
+  useEffect(() => {
+  const sentinel = sentinelRef.current;
+  // Effect won't even run while loading — no observer created
+  if (!sentinel || !hasMore || loadingMore || initialLoading) return;
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0];
+        console.log("observer", {
+    isIntersecting: entry.isIntersecting,
+    offset: offsetRef.current,
+    hasMore: hasMoreRef.current,
+    loading: loadingMoreRef.current,
+  });
+      if (!entry.isIntersecting) return;
+
+observer.unobserve(entry.target);
+
+void fetchTasks(offsetRef.current, true);
+    },
+    { rootMargin: "200px" }
+  );
+
+  observer.observe(sentinel);
+  return () => observer.disconnect();
+  
+}, [hasMore, loadingMore, initialLoading, fetchTasks]);
+
   const fetchOrgMembers = useCallback(async () => {
     if (orgMembersCacheRef.current?.orgId === orgId) {
       setEmployees(orgMembersCacheRef.current.members);
@@ -359,44 +517,6 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
 
   const selectedTaskIdSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds]);
 
-  const filteredTasks = useMemo(() => {
-    let result = tasks;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(t => t.title.toLowerCase().includes(q) || (t.description || "").toLowerCase().includes(q));
-    }
-    if (statusFilter !== "all") {
-      result = result.filter(t => t.status === statusFilter);
-    }
-    if (assigneeFilter !== "all") {
-      if (assigneeFilter === "unassigned") {
-        result = result.filter(t => !t.assignee_id);
-      } else {
-        result = result.filter(t => t.assignee_id === assigneeFilter);
-      }
-    }
-    if (startDateFilter) {
-      result = result.filter(t => t.start_date === startDateFilter);
-    }
-    if (dueDateFilter) {
-      result = result.filter(t => t.due_date === dueDateFilter);
-    }
-    
-    return result.sort((a, b) => {
-      let valA = a[sortBy] ?? "";
-      let valB = b[sortBy] ?? "";
-
-      if (sortBy === "title") {
-        valA = valA.toLowerCase();
-        valB = valB.toLowerCase();
-      }
-
-      if (valA < valB) return sortOrder === "asc" ? -1 : 1;
-      if (valA > valB) return sortOrder === "asc" ? 1 : -1;
-      return 0;
-    });
-  }, [tasks, searchQuery, statusFilter, assigneeFilter, startDateFilter, dueDateFilter, sortBy, sortOrder]);
-
   function handleSort(column: typeof sortBy) {
     if (sortBy === column) {
       setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
@@ -414,7 +534,11 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
   }
 
   const updateTaskInState = useCallback((id: string, updates: TaskPatch) => {
-    setTasks((prev) => prev.map((task) => (task.id === id ? { ...task, ...updates } : task)));
+    setTasks(prev =>
+      prev.map(task =>
+        task.id === id ? { ...task, ...updates } : task
+      )
+    );
   }, []);
 
   const commitUpdate = useCallback(
@@ -434,6 +558,7 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
   const commitTaskUpdate = useCallback(
     (id: string, updates: TablesUpdate<"tasks">) => {
       const task = tasks.find((entry) => entry.id === id);
+      
       const scopedUpdates = canManage
         ? updates
         : canEditTask(role, { userId, assigneeId: task?.assignee_id ?? null }) && updates.status !== undefined
@@ -442,7 +567,12 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
 
       if (!scopedUpdates) return;
 
-      updateTaskInState(id, scopedUpdates);
+      const patch: TaskPatch = {
+        ...scopedUpdates,
+        status: scopedUpdates.status ?? undefined,
+      };
+
+      updateTaskInState(id, patch);
       void commitUpdate(id, scopedUpdates);
     },
     [canManage, commitUpdate, role, tasks, updateTaskInState, userId]
@@ -456,11 +586,7 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
   const toggleTaskSelection = useCallback((taskId: string) => {
     setSelectedTaskIds((prev) => {
       const next = prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId];
-      if (next.length === 0) {
-        setDeleteMode(false);
-      } else {
-        setDeleteMode(true);
-      }
+      setDeleteMode(next.length > 0);
       return next;
     });
   }, []);
@@ -470,8 +596,10 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
 
     const taskIdsToDelete = [...selectedTaskIds];
     const backupTasks = tasks;
+    const backupTotal = totalCount;
 
     setTasks((prev) => prev.filter((task) => !taskIdsToDelete.includes(task.id)));
+    setTotalCount((prev) => Math.max(0, prev - taskIdsToDelete.length));
     setDeleteMode(false);
     setSelectedTaskIds([]);
 
@@ -480,18 +608,19 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
       addToast(`Deleted ${taskIdsToDelete.length} task${taskIdsToDelete.length === 1 ? "" : "s"}`, "success");
     } catch {
       setTasks(backupTasks);
+      setTotalCount(backupTotal);
       setDeleteMode(true);
       setSelectedTaskIds(taskIdsToDelete);
       addToast("Failed to delete selected tasks", "error");
     }
-  }, [addToast, orgId, selectedTaskIds, tasks]);
+  }, [addToast, orgId, selectedTaskIds, tasks, totalCount]);
 
   async function handleCreate() {
-    if (!title.trim() || !dueDate) return;
+    if (!title.trim()) return;
 
     try {
       setCreating(true);
-      const created = await createTask(title.trim(), createDescription.trim() || undefined,startDate, dueDate, orgId, projectId);
+      const created = await createTask(title.trim(), createDescription.trim() || undefined, startDate, dueDate, orgId, projectId);
       
       const optionalUpdates: TablesUpdate<"tasks"> = {};
       if (startDate) {
@@ -502,11 +631,20 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
         await updateTask(created.id, optionalUpdates, orgId);
       }
 
-      const newTask: TaskWithAssignee = {
-        ...created,
+      const newTask: ProjectTaskRpc = {
+        id: created.id,
+        organization_id: orgId,
+        project_id: projectId,
+        title: created.title,
+        description: created.description ?? null,
+        status: "todo",
         start_date: startDate || null,
+        due_date: dueDate || null,
+        created_by: userId,
+        created_at: new Date().toISOString(),
         assignee_id: null,
         assignee_name: null,
+        total_count: totalCount + 1,
       };
 
       if (selectedEmployee) {
@@ -516,6 +654,7 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
       }
 
       setTasks((prev) => [newTask, ...prev]);
+      setTotalCount((prev) => prev + 1);
       setTitle("");
       setCreateDescription("");
       setStartDate("");
@@ -537,7 +676,7 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
         const employee = projectMembers.find((member) => member.user_id === resourceId);
         updateTaskInState(taskId, {
           assignee_id: resourceId || null,
-          assignee_name: employee?.name ?? null,
+          assignee_name: resourceId ? employee?.name ?? null : null,
         });
       } catch {
         addToast("Failed to update assignee", "error");
@@ -636,7 +775,7 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
     <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
       <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative w-full flex-1 max-w-xl">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-900" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <Input
             placeholder="Search tasks"
             value={searchQuery}
@@ -647,9 +786,7 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
 
         <select
           value={statusFilter}
-          onChange={(e) =>
-            setStatusFilter(e.target.value as "all" | TaskStatus)
-          }
+          onChange={(e) => setStatusFilter(e.target.value as "all" | TaskStatus)}
           className="h-9 w-full cursor-pointer rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-44"
         >
           <option value="all">All statuses</option>
@@ -664,7 +801,7 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
           onChange={(e) => setAssigneeFilter(e.target.value)}
           className="h-9 w-full cursor-pointer rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-44"
         >
-          <option value="all">All assignees</option>
+          <option value="all">Any assignee</option>
           <option value="unassigned">Unassigned</option>
           {projectMembers.map((m) => (
             <option key={m.user_id} value={m.user_id}>{m.name}</option>
@@ -703,7 +840,6 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
 
   return (
     <div className="flex w-full flex-col gap-4 pb-12">
-      {/* Dynamic Confirmation Banner */}
       {deleteMode && selectedTaskIds.length > 0 && (
         <div className="fixed top-4 left-1/2 z-[100] flex w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-white shadow-xl animate-in fade-in slide-in-from-top-4 duration-200">
           <div className="flex items-center gap-2 text-sm font-medium">
@@ -734,24 +870,21 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
       )}
 
       <div className="flex flex-col">
-        {/* Sticky toolbar + column headers */}
         <div className="sticky top-0 z-30 border border-b-0 border-zinc-200 bg-white transition-[border-radius] duration-150 rounded-t-lg">
           <div className="flex items-center justify-between gap-4 rounded-t-lg border-b border-zinc-300 bg-zinc-200/80 px-4 py-3 overflow-hidden">
             <div className="flex-1">{tasksToolbar}</div>
           </div>
 
-          {/* Count line */}
           <div className="flex items-center justify-between border-b border-zinc-300 bg-zinc-200/80 px-6 py-2">
             <p className="text-[12px] text-zinc-600">
               Showing{" "}
-              <span className="font-medium text-zinc-600">{filteredTasks.length}</span>
-              {" "}of{" "}
               <span className="font-medium text-zinc-600">{tasks.length}</span>
+              {" "}of{" "}
+              <span className="font-medium text-zinc-600">{totalCount}</span>
               {" "}tasks
             </p>
           </div>
 
-          {/* Headers */}
           <div
             className={`hidden items-center gap-4 border-b border-zinc-200 bg-zinc-200/80 px-6 py-3 text-[13px] font-medium uppercase tracking-wider text-zinc-500 md:grid ${desktopTasksTableGrid}`}
           >
@@ -789,7 +922,7 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
           </div>
         </div>
 
-        {tasks.length === 0 || filteredTasks.length === 0 ? (
+        {tasks.length === 0 && !initialLoading ? (
           <div className="flex flex-col items-center justify-center gap-4 rounded-b-xl border border-t-0 border-dashed border-zinc-200 bg-zinc-50/60 p-12 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full border border-indigo-100 bg-indigo-50">
               <Calendar className="h-5 w-5 text-indigo-500" />
@@ -797,10 +930,10 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
             <div className="space-y-1">
               <h2 className="text-sm font-semibold text-zinc-900">No tasks found</h2>
               <p className="max-w-xs text-sm text-zinc-400">
-                {tasks.length === 0 ? "Create a task to organize work and assign team members." : "No tasks match your current filters."}
+                Create a task to organize work or clear your applied workspace filters.
               </p>
             </div>
-            {canManage && tasks.length === 0 && (
+            {canManage && (
               <Button
                 onClick={() => setShowCreate(true)}
                 className="h-9 border-transparent bg-indigo-500 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-600"
@@ -812,11 +945,11 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
           </div>
         ) : null}
 
-        <div className="w-full overflow-hidden rounded-b-xl border border-t-0 border-zinc-200 bg-white shadow-sm">
-          <div className="divide-y divide-zinc-100">
-            {filteredTasks.map((task) => (
+        <div className="w-full overflow-hidden rounded-b-xl border border-t-0 border-zinc-200 bg-white shadow-sm opacity-100 transition-opacity">
+          <div className={`divide-y divide-zinc-100 ${initialLoading ? "opacity-40 pointer-events-none" : ""}`}>
+            {tasks.map((task) => (
               <TaskRow
-                key={`${task.id}-${task.title}-${task.description ?? ""}-${task.start_date ?? ""}-${task.due_date ?? ""}`}
+                key={task.id}
                 task={task}
                 canManage={canManage}
                 canEditStatus={canEditTask(role, {
@@ -833,6 +966,16 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
               />
             ))}
           </div>
+
+          {/* Sentinel Element for Intersection Observer */}
+          <div ref={sentinelRef} className="h-4 w-full bg-transparent" />
+
+          {/* Loading Indicator for Lazy Pages */}
+          {loadingMore && (
+            <div className="flex items-center justify-center border-t border-zinc-100 bg-zinc-50/50 py-4 text-xs font-medium text-zinc-500">
+              <span className="animate-pulse">Loading additional tasks...</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -840,17 +983,13 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
         <AppModal
           title="Add Task"
           description="Create a task and optionally assign it right away."
-          onClose={() => {
-            setShowCreate(false);
-          }}
+          onClose={() => setShowCreate(false)}
           widthClassName="w-[380px]"
           footer={
             <>
               <Button
                 variant="outline"
-                onClick={() => {
-                  setShowCreate(false);
-                }}
+                onClick={() => setShowCreate(false)}
                 disabled={creating}
                 className="h-8 px-3 text-sm text-zinc-600"
               >
@@ -858,9 +997,7 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
               </Button>
               <Button
                 disabled={creating}
-                onClick={() => {
-                  void handleCreate();
-                }}
+                onClick={() => void handleCreate()}
                 className="h-8 bg-indigo-600 px-3 text-sm text-white hover:bg-indigo-700"
               >
                 {creating ? "Creating..." : "Create"}
@@ -999,9 +1136,7 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
 
               <button
                 disabled={selectedMembersToAdd.length === 0 || savingMembers}
-                onClick={() => {
-                  void handleAddMembers();
-                }}
+                onClick={() => void handleAddMembers()}
                 className="rounded-md border border-transparent bg-indigo-600 px-3 py-1.5 text-sm text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-40"
               >
                 {savingMembers
@@ -1074,9 +1209,7 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
 
               <button
                 disabled={selectedMembersToRemove.length === 0 || savingMembers}
-                onClick={() => {
-                  void handleRemoveMembers();
-                }}
+                onClick={() => void handleRemoveMembers()}
                 className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 disabled:opacity-40"
               >
                 {savingMembers ? "Removing..." : `Remove Selected${selectedMembersToRemove.length ? ` (${selectedMembersToRemove.length})` : ""}`}
