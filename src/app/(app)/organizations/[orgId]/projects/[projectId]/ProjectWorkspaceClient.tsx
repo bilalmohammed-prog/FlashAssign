@@ -371,8 +371,19 @@ const [assigneeFilter, setAssigneeFilter] = useState<string>(
   const addToastRef = useRef(addToast);
   const isFirstRender = useRef(true);
 
+  const headingRef = useRef<HTMLDivElement>(null);
+  const [headingGone, setHeadingGone] = useState(false);
   useEffect(() => { addToastRef.current = addToast; }, [addToast]);
-
+useEffect(() => {
+  const el = headingRef.current;
+  if (!el) return;
+  const obs = new IntersectionObserver(
+    ([entry]) => setHeadingGone(!entry.isIntersecting),
+    { threshold: 0 }
+  );
+  obs.observe(el);
+  return () => obs.disconnect();
+}, []);
 // Fix: initialize to actual loaded count
 const offsetRef = useRef(initialData.tasks.length);
   // Core API Fetching Method mapped to RPC
@@ -836,7 +847,7 @@ void fetchTasks(offsetRef.current, true);
     <div className="flex w-full flex-col gap-4 pb-12">
       {/* ── Page heading ── */}
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
+        <div ref={headingRef} className="space-y-1">
           <h1
             className="text-2xl font-semibold tracking-tight text-zinc-900 truncate max-w-[640px]"
             title={projectName}
@@ -907,7 +918,16 @@ void fetchTasks(offsetRef.current, true);
       )}
 
       <div className="flex flex-col">
-        <div className="sticky top-0 z-30 border border-b-0 border-zinc-200 bg-white transition-[border-radius] duration-150 rounded-t-lg">
+        <div className={`sticky top-0 z-30 border border-b-0 border-zinc-200 bg-white transition-[border-radius] duration-150 ${headingGone ? "rounded-none" : "rounded-t-lg"}`}>
+          {headingGone && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute top-0 left-0 right-0 h-12 -translate-y-full"
+          style={{
+            background: "linear-gradient(to top, rgba(249,250,251,0.95) 0%, transparent 100%)",
+          }}
+        />
+      )}
           <div className="flex items-center justify-between gap-4 rounded-t-lg border-b border-zinc-300 bg-zinc-200/80 px-4 py-3 overflow-hidden">
             <div className="flex-1">{tasksToolbar}</div>
           </div>
@@ -1102,154 +1122,120 @@ void fetchTasks(offsetRef.current, true);
         </AppModal>
       )}
 
-      {showAddMembers && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-[440px] space-y-4 rounded-xl border border-zinc-200 bg-white p-6 text-zinc-900 shadow-sm">
-            <div>
-              <h2 className="text-lg font-semibold text-zinc-900">Add Members</h2>
-              <p className="mt-1 text-sm text-zinc-500">Add one or more organization members to this project.</p>
-            </div>
+      {/* --- Refactored Add Members Modal --- */}
+{showAddMembers && (
+  <AppModal
+    title="Add Project Members"
+    description="Select organization members to grant them access to this project."
+    onClose={() => setShowAddMembers(false)}
+    widthClassName="w-[480px]"
+    footer={
+      <div className="flex w-full justify-end gap-2">
+        <Button variant="outline" onClick={() => setShowAddMembers(false)}>Cancel</Button>
+        <Button
+          disabled={selectedMembersToAdd.length === 0 || savingMembers}
+          onClick={() => void handleAddMembers()}
+        >
+          {savingMembers ? "Adding..." : `Add ${selectedMembersToAdd.length ? `(${selectedMembersToAdd.length})` : ""}`}
+        </Button>
+      </div>
+    }
+  >
+    <div className="relative mb-2">
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+      <Input
+        placeholder="Search organization members..."
+        value={memberSearch}
+        onChange={(e) => setMemberSearch(e.target.value)}
+        className="pl-9"
+      />
+    </div>
 
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-              <Input
-                placeholder="Search members"
-                value={memberSearch}
-                onChange={(e) => setMemberSearch(e.target.value)}
-                className="pl-9"
-              />
+    <div className="max-h-80 overflow-y-auto rounded-lg border border-zinc-200">
+      {membersLoading ? (
+        <div className="p-8 text-center text-sm text-zinc-500">Loading directory...</div>
+      ) : filteredAvailableEmployees.length === 0 ? (
+        <div className="p-8 text-center text-sm text-zinc-500">No members available to add.</div>
+      ) : (
+        filteredAvailableEmployees.map((employee) => (
+          <label key={employee.user_id} className="flex cursor-pointer items-center gap-3 border-b border-zinc-100 bg-white px-4 py-3 transition-colors hover:bg-zinc-50 last:border-b-0">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+              checked={selectedMembersToAdd.includes(employee.user_id)}
+              onChange={(e) => {
+                setSelectedMembersToAdd(prev => 
+                  e.target.checked ? [...prev, employee.user_id] : prev.filter(id => id !== employee.user_id)
+                );
+              }}
+            />
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-xs font-medium text-zinc-600">
+              {employee.name.charAt(0)}
             </div>
-
-            <div className="max-h-72 overflow-auto rounded-lg border border-zinc-100 bg-zinc-50/40">
-              {membersLoading ? (
-                <div className="px-4 py-6 text-sm text-zinc-500">Loading members...</div>
-              ) : filteredAvailableEmployees.length === 0 ? (
-                <div className="px-4 py-6 text-sm text-zinc-500">No available members found.</div>
-              ) : (
-                filteredAvailableEmployees.map((employee) => (
-                  <label
-                    key={employee.user_id}
-                    className="flex items-center gap-3 border-b border-zinc-100 px-4 py-3 last:border-b-0"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedMembersToAdd.includes(employee.user_id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedMembersToAdd((prev) => [...prev, employee.user_id]);
-                        } else {
-                          setSelectedMembersToAdd((prev) => prev.filter((id) => id !== employee.user_id));
-                        }
-                      }}
-                    />
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
-                      {employee.name.charAt(0)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium text-zinc-900">{employee.name}</div>
-                      <div className="text-xs text-zinc-500">Organization member</div>
-                    </div>
-                  </label>
-                ))
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setShowAddMembers(false);
-                  setSelectedMembersToAdd([]);
-                  setMemberSearch("");
-                }}
-                className="rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 transition-colors hover:bg-zinc-50"
-              >
-                Cancel
-              </button>
-
-              <button
-                disabled={selectedMembersToAdd.length === 0 || savingMembers}
-                onClick={() => void handleAddMembers()}
-                className="rounded-md border border-transparent bg-indigo-600 px-3 py-1.5 text-sm text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-40"
-              >
-                {savingMembers
-                  ? "Adding..."
-                  : `Add ${selectedMembersToAdd.length || ""} ${selectedMembersToAdd.length === 1 ? "Member" : "Members"}`.trim()}
-              </button>
-            </div>
-          </div>
-        </div>
+            <span className="text-sm font-medium text-zinc-900">{employee.name}</span>
+          </label>
+        ))
       )}
+    </div>
+  </AppModal>
+)}
 
-      {showManageMembers && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-[460px] space-y-4 rounded-xl border border-zinc-200 bg-white p-6 text-zinc-900 shadow-sm">
-            <div>
-              <h2 className="text-lg font-semibold text-zinc-900">Manage Members</h2>
-              <p className="mt-1 text-sm text-zinc-500">Select project members to remove from this workspace.</p>
+{/* --- Refactored Manage Members Modal --- */}
+{showManageMembers && (
+  <AppModal
+    title="Manage Project Members"
+    description="Remove team members from this project workspace."
+    onClose={() => setShowManageMembers(false)}
+    widthClassName="w-[480px]"
+    footer={
+      <div className="flex w-full justify-end gap-2">
+        <Button variant="outline" onClick={() => setShowManageMembers(false)}>Cancel</Button>
+        <Button
+          variant="destructive"
+          disabled={selectedMembersToRemove.length === 0 || savingMembers}
+          onClick={() => void handleRemoveMembers()}
+        >
+          {savingMembers ? "Removing..." : `Remove Selected ${selectedMembersToRemove.length ? `(${selectedMembersToRemove.length})` : ""}`}
+        </Button>
+      </div>
+    }
+  >
+    <div className="relative mb-2">
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+      <Input
+        placeholder="Filter project members..."
+        value={memberSearch}
+        onChange={(e) => setMemberSearch(e.target.value)}
+        className="pl-9"
+      />
+    </div>
+
+    <div className="max-h-80 overflow-y-auto rounded-lg border border-zinc-200">
+      {filteredProjectMembers.length === 0 ? (
+        <div className="p-8 text-center text-sm text-zinc-500">No project members found.</div>
+      ) : (
+        filteredProjectMembers.map((member) => (
+          <label key={member.user_id} className="flex cursor-pointer items-center gap-3 border-b border-zinc-100 bg-white px-4 py-3 transition-colors hover:bg-red-50 last:border-b-0">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-zinc-300 text-red-600 focus:ring-red-500"
+              checked={selectedMembersToRemove.includes(member.user_id)}
+              onChange={(e) => {
+                setSelectedMembersToRemove(prev => 
+                  e.target.checked ? [...prev, member.user_id] : prev.filter(id => id !== member.user_id)
+                );
+              }}
+            />
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-xs font-medium text-zinc-600">
+              {member.name.charAt(0)}
             </div>
-
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-              <Input
-                placeholder="Search project members"
-                value={memberSearch}
-                onChange={(e) => setMemberSearch(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-
-            <div className="max-h-72 overflow-auto rounded-lg border border-zinc-100 bg-zinc-50/40">
-              {filteredProjectMembers.length === 0 ? (
-                <div className="px-4 py-6 text-sm text-zinc-500">No project members found.</div>
-              ) : (
-                filteredProjectMembers.map((member) => (
-                  <label key={member.user_id} className="flex items-center gap-3 border-b border-zinc-100 px-4 py-3 last:border-b-0">
-                    <input
-                      type="checkbox"
-                      checked={selectedMembersToRemove.includes(member.user_id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedMembersToRemove((prev) => [...prev, member.user_id]);
-                        } else {
-                          setSelectedMembersToRemove((prev) => prev.filter((id) => id !== member.user_id));
-                        }
-                      }}
-                    />
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
-                      {member.name.charAt(0)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-zinc-900">{member.name}</div>
-                      <div className="text-xs text-zinc-500">Project member</div>
-                    </div>
-                  </label>
-                ))
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setShowManageMembers(false);
-                  setSelectedMembersToRemove([]);
-                  setMemberSearch("");
-                }}
-                className="rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 transition-colors hover:bg-zinc-50"
-              >
-                Cancel
-              </button>
-
-              <button
-                disabled={selectedMembersToRemove.length === 0 || savingMembers}
-                onClick={() => void handleRemoveMembers()}
-                className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 disabled:opacity-40"
-              >
-                {savingMembers ? "Removing..." : `Remove Selected${selectedMembersToRemove.length ? ` (${selectedMembersToRemove.length})` : ""}`}
-              </button>
-            </div>
-          </div>
-        </div>
+            <span className="text-sm font-medium text-zinc-900">{member.name}</span>
+          </label>
+        ))
       )}
+    </div>
+  </AppModal>
+)}
     </div>
   );
 }
