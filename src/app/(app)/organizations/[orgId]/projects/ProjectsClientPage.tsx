@@ -834,12 +834,12 @@ useEffect(() => {
                           }}
                         />
 
-                        {overdue && (
+                        {/* {overdue && (
                           <span className="inline-flex items-center gap-1 rounded-md border border-red-100 bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-600">
                             <AlertCircle className="h-3 w-3 shrink-0" />
                             Overdue
                           </span>
-                        )}
+                        )} */}
                       </div>
                     </div>
 

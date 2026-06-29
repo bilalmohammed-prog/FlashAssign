@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowRight,
   AlertCircle,
   Calendar,
   Plus,
@@ -31,6 +32,8 @@ import { useToast } from "@/components/providers/toast";
 import type { AppRole } from "@/lib/auth/permissions";
 import { getWorkspaceCapabilities, canEditTask } from "@/lib/auth/ui-capabilities";
 import { supabase } from "@/lib/supabase/client";
+
+import { DatePicker } from "@/components/ui/date-picker";
 
 export type ProjectTaskRpc = {
   id: string;
@@ -90,6 +93,24 @@ type TaskRowProps = {
   onToggleDeleteSelection: (taskId: string) => void;
 };
 
+function isTaskOverdue(task: { due_date?: string | null; status?: string }): boolean {
+  if (!task.due_date) return false;
+  
+  // Adjust this condition based on how you track completion status
+  if (task.status === 'completed') return false;
+  
+  // Use a localized date comparison to avoid timezone issues 
+  // if your dates are stored as YYYY-MM-DD
+  const dueDate = new Date(task.due_date);
+  const now = new Date();
+  
+  // Reset time to midnight for pure date comparison
+  dueDate.setHours(0, 0, 0, 0);
+  now.setHours(0, 0, 0, 0);
+  
+  return dueDate < now;
+}
+
 const TaskRow = memo(function TaskRow({
   task,
   canManage,
@@ -112,7 +133,7 @@ const TaskRow = memo(function TaskRow({
   const rowClassName = selectedForDelete
     ? "border-red-200 bg-red-50/70 hover:bg-red-50/80"
     : "border-zinc-100 bg-white hover:bg-zinc-100/60";
-
+const overdue = isTaskOverdue(task);
   return (
     <div
       className={`group relative flex flex-col items-start gap-3 px-4 py-4 transition-colors md:grid md:items-center md:gap-4 md:px-6 md:py-3.5 ${desktopTasksTableGrid} ${rowClassName}`}
@@ -177,7 +198,11 @@ const TaskRow = memo(function TaskRow({
           value={task.assignee_id || ""}
           onChange={(e) => onAssign(task.id, e.target.value)}
           disabled={fieldsDisabled}
-          className={`min-w-0 flex-1 appearance-none bg-transparent text-sm font-medium text-zinc-900 outline-none disabled:cursor-default ${selectedForDelete ? "opacity-90" : ""}`}
+          className={`min-w-0 flex-1 appearance-none bg-transparent text-sm font-medium outline-none disabled:cursor-default ${
+  task.assignee_id
+    ? "text-zinc-900"
+    : "italic text-zinc-400"
+} ${selectedForDelete ? "opacity-90" : ""}`}
         >
           <option value="">Unassigned</option>
           {projectMembers.map((employee) => (
@@ -186,11 +211,7 @@ const TaskRow = memo(function TaskRow({
             </option>
           ))}
         </select>
-        {!task.assignee_id && (
-          <span className="pointer-events-none absolute right-4 flex items-center gap-1.5 text-sm font-medium italic text-zinc-400 md:relative md:right-auto">
-            <AlertCircle className="h-4 w-4" />
-          </span>
-        )}
+        
       </div>
 
       <div className="hidden md:flex md:flex-col md:items-start md:gap-2">
@@ -211,41 +232,45 @@ const TaskRow = memo(function TaskRow({
         {savingId === task.id && <span className="text-xs text-zinc-500">Saving...</span>}
       </div>
 
-      <div className="hidden md:flex md:items-center md:gap-2">
-        <input
-          type="date"
-          value={startDateValue}
-          onChange={(e) => setStartDateValue(e.target.value)}
-          onBlur={(e) => {
-            if (e.target.value !== (task.start_date ?? "")) {
-              onCommitUpdate(task.id, { start_date: e.target.value || null });
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur();
-          }}
-          disabled={fieldsDisabled}
-          className={`bg-transparent text-sm font-normal text-zinc-600 outline-none hover:text-zinc-900 disabled:cursor-default ${selectedForDelete ? "opacity-90" : ""}`}
-        />
-      </div>
+      {/* Start Date */}
+<div className="hidden min-w-0 md:flex md:h-full md:items-center text-sm text-zinc-500">
+  <DatePicker
+    value={task.start_date || ""}
+    variant="ghost"
+    className="-ml-0 h-auto px-0 py-0 text-sm font-normal text-zinc-600 hover:bg-transparent hover:text-zinc-900"
+    placeholder="Set date"
+    ghostPlaceholder
+    onChange={async (val) => {
+      // Assuming onCommitUpdate handles the async/error state internally 
+      // or you can port your try/catch logic here for optimistic UI
+      await onCommitUpdate(task.id, { start_date: val || null });
+    }}
+  />
+</div>
 
-      <div className="hidden md:flex md:items-center md:gap-2">
-        <input
-          type="date"
-          value={dueDateValue}
-          onChange={(e) => setDueDateValue(e.target.value)}
-          onBlur={(e) => {
-            if (e.target.value !== (task.due_date ?? "")) {
-              onCommitUpdate(task.id, { due_date: e.target.value || null });
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur();
-          }}
-          disabled={fieldsDisabled}
-          className={`bg-transparent text-sm font-normal text-zinc-600 outline-none hover:text-zinc-900 disabled:cursor-default ${selectedForDelete ? "opacity-90" : ""}`}
-        />
-      </div>
+{/* Due Date */}
+<div className="hidden min-w-0 md:flex md:h-full md:items-center">
+  <div className="flex items-center gap-2">
+    <DatePicker
+      value={task.due_date || ""}
+      danger={overdue} // Ensure 'overdue' is calculated via task dates
+      variant="ghost"
+      className="h-auto px-0 py-0 text-sm font-normal text-zinc-600 hover:bg-transparent hover:text-zinc-900"
+      placeholder="Set date"
+      ghostPlaceholder
+      onChange={async (val) => {
+        await onCommitUpdate(task.id, { due_date: val || null });
+      }}
+    />
+
+    {/* {overdue && (
+      <span className="inline-flex items-center gap-1 rounded-md border border-red-100 bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-600">
+        <AlertCircle className="h-3 w-3 shrink-0" />
+        Overdue
+      </span>
+    )} */}
+  </div>
+</div>
 
       <div className="flex w-full items-center justify-end md:justify-center">
         {canManage && (
@@ -809,17 +834,20 @@ void fetchTasks(offsetRef.current, true);
         </select>
 
         <div className="flex items-center gap-2">
-          <input
-            type="date"
-            value={startDateFilter}
-            onChange={(e) => setStartDateFilter(e.target.value)}
-            className="h-9 w-[140px] cursor-pointer rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+          <DatePicker
+              value={startDateFilter || null}
+              onChange={(value) => setStartDateFilter(value ?? "")}
+              placeholder="Start date"
+              className="h-9 w-[150px] justify-start border-zinc-300 bg-white px-3 text-sm font-normal shadow-sm hover:bg-white"
           />
-          <input
-            type="date"
-            value={dueDateFilter}
-            onChange={(e) => setDueDateFilter(e.target.value)}
-            className="h-9 w-[140px] cursor-pointer rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+
+          <ArrowRight className="h-4 w-4 text-zinc-400" />
+
+          <DatePicker
+              value={dueDateFilter || null}
+              onChange={(value) => setDueDateFilter(value ?? "")}
+              placeholder="Due date"
+              className="h-9 w-[150px] justify-start border-zinc-300 bg-white px-3 text-sm font-normal shadow-sm hover:bg-white"
           />
         </div>
       </div>
@@ -1019,12 +1047,12 @@ void fetchTasks(offsetRef.current, true);
             <label className="text-xs font-medium text-zinc-600">Start date</label>
             <div className="relative">
               <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="h-9 w-full rounded-md border border-zinc-200 bg-white pl-9 pr-3 text-sm text-zinc-900 shadow-sm outline-none transition-[border-color,box-shadow] hover:border-zinc-300 focus:border-transparent focus:ring-2 focus:ring-indigo-500"
-              />
+              <DatePicker
+              value={startDate || null}
+              onChange={(value) => setStartDate(value ?? "")}
+              placeholder="Start date"
+              className="h-9 w-[150px] justify-start border-zinc-300 bg-white px-3 text-sm font-normal shadow-sm hover:bg-white"
+            />
             </div>
           </div>
 
@@ -1032,11 +1060,11 @@ void fetchTasks(offsetRef.current, true);
             <label className="text-xs font-medium text-zinc-600">Due date</label>
             <div className="relative">
               <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="h-9 w-full rounded-md border border-zinc-200 bg-white pl-9 pr-3 text-sm text-zinc-900 shadow-sm outline-none transition-[border-color,box-shadow] hover:border-zinc-300 focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+              <DatePicker
+              value={dueDate || null}
+              onChange={(value) => setDueDate(value ?? "")}
+              placeholder="Due date"
+              className="h-9 w-[150px] justify-start border-zinc-300 bg-white px-3 text-sm font-normal shadow-sm hover:bg-white"
               />
             </div>
           </div>
