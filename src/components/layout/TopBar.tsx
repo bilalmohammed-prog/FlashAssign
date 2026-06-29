@@ -42,12 +42,16 @@ export default function TopBar({ sidebarCollapsed, onToggleSidebar }: TopBarProp
   const isTeamPage = isOrgRoute && pathname.includes("/team");
   const isInbox = isOrgRoute && pathname.includes("/inbox");
   const segments = pathname.split("/").filter(Boolean);
-
+  
   const isProjectsPage =
     segments.length === 3 &&
     segments[0] === "organizations" &&
     segments[2] === "projects";
-    
+
+  const isProjectWorkspacePage =
+  segments.length === 4 &&
+  segments[0] === "organizations" &&
+  segments[2] === "projects";
   if (isTeamPage) {
   return null;
   }
@@ -55,6 +59,9 @@ export default function TopBar({ sidebarCollapsed, onToggleSidebar }: TopBarProp
     return null;
   }
   if (isProjectsPage) {
+    return null;
+  }
+  if (isProjectWorkspacePage) {
     return null;
   }
 

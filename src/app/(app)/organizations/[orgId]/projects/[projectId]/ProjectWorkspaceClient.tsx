@@ -738,6 +738,16 @@ void fetchTasks(offsetRef.current, true);
       setSavingMembers(true);
       await Promise.all(selectedMembersToRemove.map((userId) => removeProjectMember(projectId, userId)));
       setProjectMembers((prev) => prev.filter((member) => !selectedMembersToRemove.includes(member.user_id)));
+
+      // ── Clear assignee on any tasks that belonged to removed members ──
+      setTasks((prev) =>
+        prev.map((task) =>
+          selectedMembersToRemove.includes(task.assignee_id ?? "")
+            ? { ...task, assignee_id: null, assignee_name: null }
+            : task
+        )
+      );
+
       setSelectedMembersToRemove([]);
       setMemberSearch("");
       setShowManageMembers(false);
@@ -749,53 +759,7 @@ void fetchTasks(offsetRef.current, true);
     }
   }
 
-  useEffect(() => {
-    setPageHeader(
-      <div className="flex w-full flex-wrap items-center justify-between gap-3 md:flex-nowrap">
-        <div className="min-w-0 flex-1 md:max-w-[min(52%,640px)]">
-          <h1 className="truncate text-xl font-semibold tracking-tight text-zinc-900 md:text-[22px]" title={projectName}>
-            {projectName}
-          </h1>
-          <p className="text-xs text-zinc-500">
-            Manage project tasks and workspace members
-          </p>
-        </div>
-
-        {canManage && (
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 md:flex-nowrap">
-            <Button
-              variant="outline"
-              className="h-8 border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50"
-              onClick={() => {
-                setMemberSearch("");
-                setSelectedMembersToAdd([]);
-                setShowAddMembers(true);
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4 text-zinc-500" />
-              Add Member
-            </Button>
-            <Button
-              variant="outline"
-              className="h-8 border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50"
-              onClick={() => {
-                setMemberSearch("");
-                setSelectedMembersToRemove([]);
-                setShowManageMembers(true);
-              }}
-            >
-              <Users className="mr-2 h-4 w-4 text-zinc-500" />
-              Manage Members
-            </Button>
-          </div>
-        )}
-      </div>
-    );
-
-    return () => {
-      setPageHeader(null);
-    };
-  }, [canManage, projectName, setPageHeader]);
+  
 
   const tasksToolbar = (
     <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -868,7 +832,51 @@ void fetchTasks(offsetRef.current, true);
   );
 
   return (
+    
     <div className="flex w-full flex-col gap-4 pb-12">
+      {/* ── Page heading ── */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <h1
+            className="text-2xl font-semibold tracking-tight text-zinc-900 truncate max-w-[640px]"
+            title={projectName}
+          >
+            {projectName}
+          </h1>
+          <p className="text-sm text-zinc-500">
+            Manage project tasks and workspace members.
+          </p>
+        </div>
+
+        {canManage && (
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              variant="outline"
+              className="h-9 border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50"
+              onClick={() => {
+                setMemberSearch("");
+                setSelectedMembersToAdd([]);
+                setShowAddMembers(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4 text-zinc-500" />
+              Add Member
+            </Button>
+            <Button
+              variant="outline"
+              className="h-9 border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50"
+              onClick={() => {
+                setMemberSearch("");
+                setSelectedMembersToRemove([]);
+                setShowManageMembers(true);
+              }}
+            >
+              <Users className="mr-2 h-4 w-4 text-zinc-500" />
+              Manage Members
+            </Button>
+          </div>
+        )}
+      </div>
       {deleteMode && selectedTaskIds.length > 0 && (
         <div className="fixed top-4 left-1/2 z-[100] flex w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-white shadow-xl animate-in fade-in slide-in-from-top-4 duration-200">
           <div className="flex items-center gap-2 text-sm font-medium">
