@@ -21,6 +21,7 @@ interface Props {
   placeholder?: string;
   ghostPlaceholder?: boolean;
   danger?: boolean;
+  disabled?: boolean;
 }
 
 export function DatePicker({
@@ -31,17 +32,21 @@ export function DatePicker({
   placeholder = "Set date",
   ghostPlaceholder = false,
   danger = false,
+  disabled = false,
 }: Props) {
   const date = value ? new Date(value) : undefined;
-
+  const [open, setOpen] = React.useState(false);
   return (
-    <Popover>
+    <Popover
+    open={disabled ? false : open}
+    onOpenChange={(next) => {
+      if (!disabled) setOpen(next);
+    }}>
       <PopoverTrigger asChild>
         <Button
           onClick={(e) => e.stopPropagation()}
           variant={variant}
-          className={`gap-0 cursor-pointer ${className ?? ""}`}
-          
+          className={`gap-0 ${disabled ? "cursor-default" : "cursor-pointer"} ${className ?? ""}`}
         >
 
 

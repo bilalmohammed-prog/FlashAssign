@@ -138,7 +138,7 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
               selectedForDelete
                 ? "line-through text-red-950/80 opacity-90"
                 : task.status === "done"
-                ? "text-zinc-500"
+                ? "text-zinc-900"
                 : "text-zinc-900"
             }
           `}
@@ -644,7 +644,17 @@ const canEditStatusForEmployee = useMemo(
             className="h-9 border-zinc-200 bg-white pl-9 text-sm text-zinc-700 placeholder:text-zinc-500 focus-visible:ring-2 focus-visible:ring-indigo-500 border-zinc-300 shadow-sm"
           />
         </div>
-
+        <select
+          value={projectFilter}
+          onChange={(e) => setProjectFilter(e.target.value)}
+          className="h-9 w-full cursor-pointer rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-44"
+        >
+          <option value="all">Any workspace</option>
+          <option value="unassigned">No workspace</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as "all" | TaskStatus)}
@@ -657,17 +667,7 @@ const canEditStatusForEmployee = useMemo(
           <option value="done">Completed</option>
         </select>
 
-        <select
-          value={projectFilter}
-          onChange={(e) => setProjectFilter(e.target.value)}
-          className="h-9 w-full cursor-pointer rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-44"
-        >
-          <option value="all">Any workspace</option>
-          <option value="unassigned">No workspace</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
+        
 
         <div className="flex items-center gap-2">
           <DatePicker

@@ -18,14 +18,14 @@ export function ExpandableDescription({
   onChange,
   onCommit,
   disabled = false,
-  placeholder = "Add description",
+  placeholder = "Description",
   className,
 }: ExpandableDescriptionProps) {
   const [expanded, setExpanded] = useState(false);
   const contentId = useId();
   const normalizedValue = value ?? "";
   const hasValue = useMemo(() => normalizedValue.trim().length > 0, [normalizedValue]);
-  const label = hasValue ? "Description" : disabled ? placeholder : "Add description";
+  const label = hasValue ? "Description" : disabled ? placeholder : "Description";
   const textareaValue = disabled && !hasValue ? "" : normalizedValue;
 
   return (
