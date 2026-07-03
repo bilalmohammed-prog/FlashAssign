@@ -47,14 +47,26 @@ export async function updateTask(
       project_id: validatedUpdates.project_id,
     },
   });
+  
   const before = await getTaskById(ctx.supabase, {
     organizationId: ctx.organizationId,
     taskId: validatedTaskId,
   });
-
+  let beforeProjectName: string | null = null;
   if (!before) {
     throw new Error("Task not found");
   }
+  if (before.project_id) {
+    const { data } = await ctx.supabase
+      .from("projects")
+      .select("name")
+      .eq("id", before.project_id)
+      .maybeSingle();
+
+    beforeProjectName = data?.name ?? null;
+  }
+
+  
   const updatedTask = await updateTaskService(ctx.supabase, {
   organizationId: ctx.organizationId,
   taskId: validatedTaskId,
@@ -67,8 +79,27 @@ export async function updateTask(
     project_id: validatedUpdates.project_id,
   },
 });
+
+let afterProjectName: string | null = null;
+
+  if (updatedTask.project_id) {
+    const { data } = await ctx.supabase
+      .from("projects")
+      .select("name")
+      .eq("id", updatedTask.project_id)
+      .maybeSingle();
+
+    afterProjectName = data?.name ?? null;
+  }
   const changes = [];
 
+if (before.project_id !== updatedTask.project_id) {
+  changes.push({
+    field: "project",
+    before: beforeProjectName,
+    after: afterProjectName,
+  });
+}
 if (before.title !== updatedTask.title) {
   changes.push({
     field: "title",
@@ -76,7 +107,6 @@ if (before.title !== updatedTask.title) {
     after: updatedTask.title,
   });
 }
-
 if (before.description !== updatedTask.description) {
   changes.push({
     field: "description",
@@ -116,6 +146,7 @@ if (before.project_id !== updatedTask.project_id) {
     after: updatedTask.project_id,
   });
 }
+console.log("Changes:", changes);
   await createAuditLog(supabaseAdmin, {
     organizationId: ctx.organizationId,
     projectId: updatedTask.project_id,

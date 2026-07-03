@@ -16,23 +16,32 @@ export async function createTask(
     dueDate?: string;
   }
 ): Promise<Tables<"tasks">> {
-  if (params.projectId) {
-    const { data: project, error: projectError } = await supabase
-      .from("projects")
-      .select("id")
-      .eq("id", params.projectId)
-      .eq("organization_id", params.organizationId)
-      .is("deleted_at", null)
-      .maybeSingle();
+  let project: Pick<Tables<"projects">, "id" | "name"> | null = null;
 
-    if (projectError) {
-      throw new ValidationError({ message: projectError.message, details: projectError });
-    }
+if (params.projectId) {
+  const { data, error: projectError } = await supabase
+    .from("projects")
+    .select("id, name")
+    .eq("id", params.projectId)
+    .eq("organization_id", params.organizationId)
+    .is("deleted_at", null)
+    .maybeSingle();
 
-    if (!project) {
-      throw new NotFoundError({ message: "Project not found in this organization" });
-    }
+  if (projectError) {
+    throw new ValidationError({
+      message: projectError.message,
+      details: projectError,
+    });
   }
+
+  if (!data) {
+    throw new NotFoundError({
+      message: "Project not found in this organization",
+    });
+  }
+
+  project = data;
+}
 
   const insert: TablesInsert<"tasks"> = {
     project_id: params.projectId,
@@ -43,6 +52,7 @@ export async function createTask(
     status: "todo",
     start_date: params.startDate ?? null,
     due_date: params.dueDate ?? null,
+    
   };
 
   const { data, error } = await supabase.from("tasks").insert(insert).select("*").maybeSingle();
@@ -61,7 +71,38 @@ export async function createTask(
     action: "CREATE",
     entityType: "task",
     entityId: data.id,
-    changes: [],
+    changes: [
+  {
+    field: "title",
+    before: null,
+    after: data.title,
+  },
+  {
+    field: "description",
+    before: null,
+    after: data.description,
+  },
+  {
+    field: "status",
+    before: null,
+    after: data.status,
+  },
+  {
+    field: "start_date",
+    before: null,
+    after: data.start_date,
+  },
+  {
+    field: "due_date",
+    before: null,
+    after: data.due_date,
+  },
+  {
+    field: "project",
+    before: null,
+    after: project?.name ?? "No Project",
+  }
+]
   });
   return data;
 }

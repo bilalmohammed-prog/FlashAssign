@@ -18,7 +18,7 @@ export async function createTask(
   startDate: string | null,
   dueDate: string | null,
   orgId: string,
-  project_id: string | null
+  project_id: string | null,
 ): Promise<Tables<"tasks">> {
   const normalizedStartDate = startDate || null;
 const normalizedDueDate = dueDate || null;

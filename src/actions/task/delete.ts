@@ -34,6 +34,33 @@ export async function deleteTask(taskId: string, orgId: string) {
     action: "DELETE",
     entityType: "task",
     entityId: task.id,
+    changes: [
+      {
+        field: "title",
+        before: task.title,
+        after: null,
+      },
+      {
+        field: "description",
+        before: task.description,
+        after: null,
+      },
+      {
+        field: "status",
+        before: task.status,
+        after: null,
+      },
+      {
+        field: "start_date",
+        before: task.start_date,
+        after: null,
+      },
+      {
+        field: "due_date",
+        before: task.due_date,
+        after: null,
+      },
+    ],
   });
 
   // ✅ invalidate cache AFTER mutation
