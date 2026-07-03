@@ -28,6 +28,19 @@ export async function assignTaskToResource(
     taskId: validatedTaskId,
   });
   const previousAssignee = existingAssignments[0]?.user_id ?? null;
+  const previousAssigneeName =
+    existingAssignments[0]?.profile?.name ?? null;
+    let newAssigneeName: string | null = null;
+
+    if (validatedUserId) {
+      const { data: profile } = await ctx.supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", validatedUserId)
+        .maybeSingle();
+
+      newAssigneeName = profile?.full_name ?? null;
+    }
   await Promise.all(
     existingAssignments.map((assignment) =>
       deleteAssignment(ctx.supabase, {
@@ -56,10 +69,10 @@ export async function assignTaskToResource(
     changes: [
       {
         field: "assignee",
-        before: previousAssignee,
-        after: validatedUserId,
+        before: previousAssigneeName,
+        after: newAssigneeName,
       },
-    ],
+    ]
   });
 }
 }
