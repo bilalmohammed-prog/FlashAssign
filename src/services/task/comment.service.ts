@@ -6,6 +6,7 @@ import {
 } from "@/lib/api/errors";
 import type { AppRole } from "@/lib/auth/permissions";
 import type { Database, Tables, TablesInsert } from "@/lib/types/database";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 type TaskTenantRow = Pick<
   Tables<"tasks">,
@@ -244,7 +245,7 @@ export async function deleteCommentForTask(
     });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("comments")
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", params.commentId)
