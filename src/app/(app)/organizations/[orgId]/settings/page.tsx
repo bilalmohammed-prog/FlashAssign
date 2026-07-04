@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { uuidSchema } from "@/lib/validation/common";
 import type { Database } from "@/lib/types/database";
+import { updateMemberRole as updateMemberRoleService } from "@/services/organization/member.service";
 
 type RoleType = Database["public"]["Enums"]["role_type"];
 
@@ -90,11 +91,12 @@ export default async function OrgSettingsPage({
       return;
     }
 
-    await orgCtx.supabase
-      .from("org_members")
-      .update({ role })
-      .eq("organization_id", orgCtx.organizationId)
-      .eq("user_id", userId);
+    await updateMemberRoleService(orgCtx.supabase, {
+      organizationId: orgCtx.organizationId,
+      userId,
+      role,
+      actorId: orgCtx.userId,
+    });
 
     revalidatePath(`/organizations/${orgCtx.organizationId}/settings`);
   }

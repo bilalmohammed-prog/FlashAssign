@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { Database } from "@/lib/types/database";
+import { updateMemberRole as updateMemberRoleService } from "@/services/organization/member.service";
 
 type RoleType = Database["public"]["Enums"]["role_type"];
 
@@ -64,11 +65,12 @@ export default async function OrgSettingsPage() {
     const role = String(formData.get("role") ?? "employee") as RoleType;
     if (!userId) return;
 
-    await orgCtx.supabase
-      .from("org_members")
-      .update({ role })
-      .eq("organization_id", orgCtx.organizationId)
-      .eq("user_id", userId);
+    await updateMemberRoleService(orgCtx.supabase, {
+      organizationId: orgCtx.organizationId,
+      userId,
+      role,
+      actorId: orgCtx.userId,
+    });
 
     revalidatePath("/settings/org");
   }

@@ -8,7 +8,10 @@ import { uuidSchema } from "@/lib/validation/common";
 import type { Database } from "@/lib/types/database";
 import TeamTabsClient, { TeamMemberRow, TeamWorkloadRow } from "./team-tabs-client";
 import { z } from "zod";
-import { removeMember as removeMemberService } from "@/services/organization/member.service";
+import {
+  removeMember as removeMemberService,
+  updateMemberRole as updateMemberRoleService,
+} from "@/services/organization/member.service";
 
 type RoleType = Database["public"]["Enums"]["role_type"];
 
@@ -243,23 +246,22 @@ export default async function TeamPage({
       }
     }
 
-    const { error: updateError } = await orgCtx.supabase
-      .from("org_members")
-      .update({ role })
-      .eq("organization_id", orgCtx.organizationId)
-      .eq("user_id", userId);
+    const { updated: roleChanged } = await updateMemberRoleService(orgCtx.supabase, {
+      organizationId: orgCtx.organizationId,
+      userId,
+      role,
+      actorId: orgCtx.userId,
+    });
 
-    if (updateError) {
-      return redirectOrReturn(updateError.message);
-    }
+    const successMessage = roleChanged ? "Role updated" : "Role unchanged";
 
     if (inline) {
-      return { ok: true, message: "Role updated" };
+      return { ok: true, message: successMessage };
     }
 
     revalidatePath(`/organizations/${organizationId}/team`);
     redirect(
-      `/organizations/${organizationId}/team?tab=members&status=success&message=${encodeQueryMessage("Role updated")}`
+      `/organizations/${organizationId}/team?tab=members&status=success&message=${encodeQueryMessage(successMessage)}`
     );
   }
 

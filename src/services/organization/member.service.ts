@@ -9,6 +9,11 @@ export type AddMemberResult = {
   created: boolean;
 };
 
+export type UpdateMemberRoleResult = {
+  member: Tables<"org_members">;
+  updated: boolean;
+};
+
 export async function addMember(
   supabase: SupabaseClient<Database>,
   params: {
@@ -117,7 +122,7 @@ export async function removeMember(
 ): Promise<void> {
   const { data: existing, error: existingError } = await supabase
     .from("org_members")
-    .select("id,user_id,role")
+    .select("*")
     .eq("organization_id", params.organizationId)
     .eq("user_id", params.userId)
     .maybeSingle();
@@ -170,4 +175,67 @@ export async function removeMember(
       },
     ],
   });
+}
+
+export async function updateMemberRole(
+  supabase: SupabaseClient<Database>,
+  params: {
+    organizationId: string;
+    userId: string;
+    role: Database["public"]["Enums"]["role_type"];
+    actorId: string;
+  }
+): Promise<UpdateMemberRoleResult> {
+  const { data: existing, error: existingError } = await supabase
+    .from("org_members")
+    .select("*")
+    .eq("organization_id", params.organizationId)
+    .eq("user_id", params.userId)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new ValidationError({ message: existingError.message, details: existingError });
+  }
+
+  if (!existing) {
+    throw new ValidationError({ message: "Member not found" });
+  }
+
+  if (existing.role === params.role) {
+    return { member: existing, updated: false };
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from("org_members")
+    .update({ role: params.role })
+    .eq("organization_id", params.organizationId)
+    .eq("user_id", params.userId)
+    .select("*")
+    .maybeSingle();
+
+  if (updateError) {
+    throw new ValidationError({ message: updateError.message, details: updateError });
+  }
+
+  if (!updated) {
+    throw new ValidationError({ message: "Unable to update member role" });
+  }
+
+  void createAuditLog(supabaseAdmin, {
+    organizationId: params.organizationId,
+    projectId: null,
+    actorId: params.actorId,
+    action: "UPDATE",
+    entityType: "member",
+    entityId: existing.id,
+    changes: [
+      {
+        field: "role",
+        before: existing.role,
+        after: params.role,
+      },
+    ],
+  });
+
+  return { member: updated, updated: true };
 }
