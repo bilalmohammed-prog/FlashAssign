@@ -4,7 +4,6 @@ import { useOrgRole } from "@/hooks/useOrgRole";
 import { getWorkspaceCapabilities } from "@/lib/auth/ui-capabilities";
 import { isAppRole, toAppRole } from "@/lib/auth/permissions";
 import { createProjectAction } from "@/actions/project/create";
-import { assignProjectMember } from "@/actions/project/assignProjectMember";
 import { updateProjectAction } from "@/actions/project/update";
 import { listProjectsWithMetaAction, type ProjectWithMeta } from "@/actions/project/listWithMeta";
 import { useEffect, useState, useCallback, useRef } from "react";
@@ -328,16 +327,8 @@ useEffect(() => {
         status: "active",
         startDate: createStartDate || null,
         endDate: createEndDate || null,
+        memberIds: selectedMembers,
       });
-      const memberAssignmentResults =
-        selectedMembers.length > 0 && created?.id
-          ? await Promise.allSettled(
-              selectedMembers.map((uid) => assignProjectMember(created.id, uid, orgId))
-            )
-          : [];
-      const assignedMemberCount = memberAssignmentResults.filter(
-        (result) => result.status === "fulfilled"
-      ).length;
       if (created?.id) {
         setProjects((prev) => [
           {
@@ -346,14 +337,14 @@ useEffect(() => {
             status: created.status ?? "active",
             startDate: created.start_date ?? null,
             endDate: created.end_date ?? null,
-            memberCount: assignedMemberCount,
+            memberCount: created.assignedMemberCount,
             completed: 0,
             total: 0,
           },
           ...prev,
         ]);
       }
-      if (memberAssignmentResults.some((result) => result.status === "rejected")) {
+      if (created.failedMemberCount > 0) {
         addToastRef.current("Project created, but failed to assign some members", "error");
       }
       setShowCreate(false);

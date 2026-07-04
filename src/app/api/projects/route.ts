@@ -3,6 +3,8 @@ import { authorize } from "@/lib/auth/authorization";
 import { requireTenantContext } from "@/lib/auth/tenant-context";
 import { projectCreateSchema, projectListQuerySchema } from "@/lib/validation/project";
 import { createProject, listProjects } from "@/services/project/project.service";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { createAuditLog } from "@/services/audit/audit.service";
 
 export async function GET(req: Request) {
   const routeStart = Date.now();
@@ -64,6 +66,48 @@ export async function POST(req: Request) {
       endDate: payload.endDate,
     });
     console.info(`[perf] [DB] api projects createProject ${Date.now() - queryStart}ms`);
+
+    void createAuditLog(supabaseAdmin, {
+      organizationId: tenant.organizationId,
+      projectId: project.id,
+      actorId: tenant.user.id,
+      action: "CREATE",
+      entityType: "project",
+      entityId: project.id,
+      changes: [
+        {
+          field: "title",
+          before: null,
+          after: project.name,
+        },
+        {
+          field: "description",
+          before: null,
+          after: null,
+        },
+        {
+          field: "status",
+          before: null,
+          after: project.status,
+        },
+        {
+          field: "start_date",
+          before: null,
+          after: project.start_date,
+        },
+        {
+          field: "due_date",
+          before: null,
+          after: project.end_date,
+        },
+        {
+          field: "members",
+          before: null,
+          after: [tenant.user.email ?? tenant.user.id],
+        },
+      ],
+    });
+
     console.info(`[perf] [Page] api projects POST total ${Date.now() - routeStart}ms`);
 
     return ok(
