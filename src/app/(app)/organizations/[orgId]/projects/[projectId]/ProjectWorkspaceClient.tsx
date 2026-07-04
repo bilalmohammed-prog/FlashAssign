@@ -657,16 +657,15 @@ void fetchTasks(offsetRef.current, true);
 
     try {
       setCreating(true);
-      const created = await createTask(title.trim(), createDescription.trim() || undefined, startDate, dueDate, orgId, projectId);
-      
-      const optionalUpdates: TablesUpdate<"tasks"> = {};
-      if (startDate) {
-        optionalUpdates.start_date = startDate;
-      }
-
-      if (Object.keys(optionalUpdates).length > 0) {
-        await updateTask(created.id, optionalUpdates, orgId);
-      }
+      const created = await createTask(
+        title.trim(),
+        createDescription.trim() || undefined,
+        startDate,
+        dueDate,
+        orgId,
+        projectId,
+        selectedEmployee || null
+      );
 
       const newTask: ProjectTaskRpc = {
         id: created.id,
@@ -685,7 +684,6 @@ void fetchTasks(offsetRef.current, true);
       };
 
       if (selectedEmployee) {
-        await assignTaskToResource(created.id, selectedEmployee);
         newTask.assignee_id = selectedEmployee;
         newTask.assignee_name = projectMembers.find((employee) => employee.user_id === selectedEmployee)?.name ?? null;
       }

@@ -17,7 +17,6 @@ import type { Enums, TablesUpdate } from "@/lib/types/database";
 import { updateTask } from "@/actions/task/update";
 import { createTask } from "@/actions/task/create";
 import { deleteTask as deleteTaskAction } from "@/actions/task/delete";
-import { assignTaskToResource } from "@/actions/task/assign";
 import { listOrgMembers } from "@/actions/organization/listOrgMembers";
 import { usePageHeader } from "@/components/layout/PageHeaderContext";
 import { Button } from "@/components/ui/button";
@@ -587,19 +586,15 @@ const canEditStatusForEmployee = useMemo(
 
     try {
       setCreating(true);
-      const created = await createTask(title.trim(), createDescription.trim() || undefined, startDate, dueDate, orgId, selectedProjectId || null);
-      
-      const optionalUpdates: TablesUpdate<"tasks"> = {};
-      if (startDate) {
-        optionalUpdates.start_date = startDate;
-      }
-
-      if (Object.keys(optionalUpdates).length > 0) {
-        await updateTask(created.id, optionalUpdates, orgId);
-      }
-
-      // Automatically assign the newly created task to this employee context
-      await assignTaskToResource(created.id, employeeId);
+      const created = await createTask(
+        title.trim(),
+        createDescription.trim() || undefined,
+        startDate,
+        dueDate,
+        orgId,
+        selectedProjectId || null,
+        employeeId
+      );
 
       const newTask: EmployeeTaskRpc = {
         id: created.id,

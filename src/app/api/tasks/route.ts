@@ -6,6 +6,8 @@ import { requireTenantContext } from "@/lib/auth/tenant-context";
 import { authorize } from "@/lib/auth/authorization";
 import { toLegacyTaskStatus } from "@/lib/validation/common";
 import { taskCreateSchema } from "@/lib/validation/task";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { createAuditLog } from "@/services/audit/audit.service";
 import { createAssignment } from "@/services/resource/assignment.service";
 import { getProjectById } from "@/services/resource/project.service";
 import { listOrganizationMembers } from "@/services/organization/organization.service";
@@ -76,6 +78,61 @@ export async function POST(req: Request) {
       userId: payload.user_id,
     });
     console.info(`[perf] [DB] api tasks POST createAssignment ${Date.now() - assignmentStart}ms`);
+
+    const profileStart = Date.now();
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", payload.user_id)
+      .maybeSingle();
+    console.info(`[perf] [DB] api tasks POST load profile ${Date.now() - profileStart}ms`);
+
+    await createAuditLog(supabaseAdmin, {
+      organizationId,
+      projectId: data.project_id,
+      actorId: tenant.user.id,
+      action: "CREATE",
+      entityType: "task",
+      entityId: data.id,
+      changes: [
+        {
+          field: "title",
+          before: null,
+          after: data.title,
+        },
+        {
+          field: "description",
+          before: null,
+          after: data.description,
+        },
+        {
+          field: "status",
+          before: null,
+          after: data.status,
+        },
+        {
+          field: "project",
+          before: null,
+          after: project.name,
+        },
+        {
+          field: "start_date",
+          before: null,
+          after: data.start_date,
+        },
+        {
+          field: "due_date",
+          before: null,
+          after: data.due_date,
+        },
+        {
+          field: "assignee",
+          before: null,
+          after: profile?.full_name ?? null,
+        },
+      ],
+    });
+
     console.info(`[perf] [Page] api tasks POST total ${Date.now() - routeStart}ms`);
 
     return ok(

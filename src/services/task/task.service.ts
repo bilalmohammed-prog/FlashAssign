@@ -1,8 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NotFoundError, ValidationError } from "@/lib/api/errors";
 import type { Database, Tables, TablesInsert } from "@/lib/types/database";
-import { createAuditLog } from "@/services/audit/audit.service";
-import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export async function createTask(
   supabase: SupabaseClient<Database>,
@@ -16,32 +14,28 @@ export async function createTask(
     dueDate?: string;
   }
 ): Promise<Tables<"tasks">> {
-  let project: Pick<Tables<"projects">, "id" | "name"> | null = null;
+  if (params.projectId) {
+    const { data, error: projectError } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("id", params.projectId)
+      .eq("organization_id", params.organizationId)
+      .is("deleted_at", null)
+      .maybeSingle();
 
-if (params.projectId) {
-  const { data, error: projectError } = await supabase
-    .from("projects")
-    .select("id, name")
-    .eq("id", params.projectId)
-    .eq("organization_id", params.organizationId)
-    .is("deleted_at", null)
-    .maybeSingle();
+    if (projectError) {
+      throw new ValidationError({
+        message: projectError.message,
+        details: projectError,
+      });
+    }
 
-  if (projectError) {
-    throw new ValidationError({
-      message: projectError.message,
-      details: projectError,
-    });
+    if (!data) {
+      throw new NotFoundError({
+        message: "Project not found in this organization",
+      });
+    }
   }
-
-  if (!data) {
-    throw new NotFoundError({
-      message: "Project not found in this organization",
-    });
-  }
-
-  project = data;
-}
 
   const insert: TablesInsert<"tasks"> = {
     project_id: params.projectId,
@@ -52,7 +46,6 @@ if (params.projectId) {
     status: "todo",
     start_date: params.startDate ?? null,
     due_date: params.dueDate ?? null,
-    
   };
 
   const { data, error } = await supabase.from("tasks").insert(insert).select("*").maybeSingle();
@@ -64,46 +57,6 @@ if (params.projectId) {
   if (!data) {
     throw new ValidationError({ message: "Failed to create task" });
   }
-  await createAuditLog(supabaseAdmin, {
-    organizationId: params.organizationId,
-    projectId: data.project_id,
-    actorId: params.createdBy,
-    action: "CREATE",
-    entityType: "task",
-    entityId: data.id,
-    changes: [
-  {
-    field: "title",
-    before: null,
-    after: data.title,
-  },
-  {
-    field: "description",
-    before: null,
-    after: data.description,
-  },
-  {
-    field: "status",
-    before: null,
-    after: data.status,
-  },
-  {
-    field: "start_date",
-    before: null,
-    after: data.start_date,
-  },
-  {
-    field: "due_date",
-    before: null,
-    after: data.due_date,
-  },
-  {
-    field: "project",
-    before: null,
-    after: project?.name ?? "No Project",
-  }
-]
-  });
   return data;
 }
 
