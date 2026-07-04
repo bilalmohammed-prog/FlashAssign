@@ -5,9 +5,12 @@ import {
   projectMemberParamsSchema,
   projectMemberRoleUpdateSchema,
 } from "@/lib/validation/project";
+import { createAuditLog } from "@/services/audit/audit.service";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   removeProjectMember,
   updateProjectMemberRole,
+  listProjectMembers as listProjectMembersService,
 } from "@/services/resource/projectMember.service";
 
 export async function PATCH(
@@ -48,11 +51,49 @@ export async function DELETE(
 
     const { projectId, userId } = projectMemberParamsSchema.parse(await params);
 
+    const beforeMembers = await listProjectMembersService(tenant.supabase, {
+      organizationId: tenant.organizationId,
+      projectId,
+    });
+
     await removeProjectMember(tenant.supabase, {
       organizationId: tenant.organizationId,
       projectId,
       userId,
     });
+
+    const afterMembers = await listProjectMembersService(tenant.supabase, {
+      organizationId: tenant.organizationId,
+      projectId,
+    });
+
+    const beforeMemberIds = beforeMembers.map((member) => member.user_id).sort();
+    const afterMemberIds = afterMembers.map((member) => member.user_id).sort();
+
+    if (JSON.stringify(beforeMemberIds) !== JSON.stringify(afterMemberIds)) {
+      const beforeMemberLabels = [...beforeMembers]
+        .sort((a, b) => a.user_id.localeCompare(b.user_id))
+        .map((member) => member.full_name ?? member.user_id);
+      const afterMemberLabels = [...afterMembers]
+        .sort((a, b) => a.user_id.localeCompare(b.user_id))
+        .map((member) => member.full_name ?? member.user_id);
+
+      void createAuditLog(supabaseAdmin, {
+        organizationId: tenant.organizationId,
+        projectId,
+        actorId: tenant.user.id,
+        action: "UPDATE",
+        entityType: "project",
+        entityId: projectId,
+        changes: [
+          {
+            field: "members",
+            before: beforeMemberLabels,
+            after: afterMemberLabels,
+          },
+        ],
+      });
+    }
 
     return ok({ message: "Project member removed" });
   } catch (err) {

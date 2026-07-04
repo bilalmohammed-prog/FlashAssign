@@ -74,11 +74,6 @@ export async function createProjectAction(params: {
         after: result.name,
       },
       {
-        field: "description",
-        before: null,
-        after: null,
-      },
-      {
         field: "status",
         before: null,
         after: result.status,

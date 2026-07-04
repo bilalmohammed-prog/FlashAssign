@@ -50,11 +50,6 @@ export async function deleteProject(projectId: string) {
         after: null,
       },
       {
-        field: "description",
-        before: null,
-        after: null,
-      },
-      {
         field: "status",
         before: project.status,
         after: null,

@@ -4,11 +4,9 @@ import { requireTenantContext } from "@/lib/auth/tenant-context";
 import { projectIdParamsSchema, projectUpdateSchema } from "@/lib/validation/project";
 import { createAuditLog } from "@/services/audit/audit.service";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import {
-  softDeleteProject,
-  updateProject,
-} from "@/services/project/project.service";
+import { softDeleteProject } from "@/services/project/project.service";
 import { getProjectById } from "@/services/resource/project.service";
+import { updateProject } from "@/services/project/project.service";
 import { listProjectMembers as listProjectMembersService } from "@/services/resource/projectMember.service";
 
 export async function PATCH(
@@ -22,6 +20,21 @@ export async function PATCH(
     const { projectId } = projectIdParamsSchema.parse(await params);
     const body = projectUpdateSchema.parse(await req.json());
 
+    const [beforeProject, beforeMembers] = await Promise.all([
+      getProjectById(tenant.supabase, {
+        organizationId: tenant.organizationId,
+        projectId,
+      }),
+      listProjectMembersService(tenant.supabase, {
+        organizationId: tenant.organizationId,
+        projectId,
+      }),
+    ]);
+
+    if (!beforeProject) {
+      throw new Error("Project not found");
+    }
+
     const project = await updateProject(tenant.supabase, {
       organizationId: tenant.organizationId,
       projectId,
@@ -30,6 +43,74 @@ export async function PATCH(
       startDate: body.startDate,
       endDate: body.endDate,
     });
+
+    const afterMembers = await listProjectMembersService(tenant.supabase, {
+      organizationId: tenant.organizationId,
+      projectId,
+    });
+
+    const changes = [];
+
+    if (beforeProject.name !== project.name) {
+      changes.push({
+        field: "title",
+        before: beforeProject.name,
+        after: project.name,
+      });
+    }
+
+    if (beforeProject.status !== project.status) {
+      changes.push({
+        field: "status",
+        before: beforeProject.status,
+        after: project.status,
+      });
+    }
+
+    if (beforeProject.start_date !== project.start_date) {
+      changes.push({
+        field: "start_date",
+        before: beforeProject.start_date,
+        after: project.start_date,
+      });
+    }
+
+    if (beforeProject.end_date !== project.end_date) {
+      changes.push({
+        field: "due_date",
+        before: beforeProject.end_date,
+        after: project.end_date,
+      });
+    }
+
+    const beforeMemberIds = beforeMembers.map((member) => member.user_id).sort();
+    const afterMemberIds = afterMembers.map((member) => member.user_id).sort();
+    if (JSON.stringify(beforeMemberIds) !== JSON.stringify(afterMemberIds)) {
+      const beforeMemberLabels = [...beforeMembers]
+        .sort((a, b) => a.user_id.localeCompare(b.user_id))
+        .map((member) => member.full_name ?? member.user_id);
+      const afterMemberLabels = [...afterMembers]
+        .sort((a, b) => a.user_id.localeCompare(b.user_id))
+        .map((member) => member.full_name ?? member.user_id);
+
+      changes.push({
+        field: "members",
+        before: beforeMemberLabels,
+        after: afterMemberLabels,
+      });
+    }
+
+    if (changes.length > 0) {
+      void createAuditLog(supabaseAdmin, {
+        organizationId: tenant.organizationId,
+        projectId: project.id,
+        actorId: tenant.user.id,
+        action: "UPDATE",
+        entityType: "project",
+        entityId: project.id,
+        changes,
+      });
+    }
 
     return ok({
       message: "Project updated",
@@ -82,11 +163,6 @@ export async function DELETE(
         {
           field: "title",
           before: project.name,
-          after: null,
-        },
-        {
-          field: "description",
-          before: null,
           after: null,
         },
         {
