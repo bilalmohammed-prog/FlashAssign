@@ -8,6 +8,7 @@ import { revalidateTag } from "next/cache";
 import { getTaskById } from "@/services/task/task.service";
 import { createAuditLog } from "@/services/audit/audit.service";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { listAssignments } from "@/services/resource/assignment.service";
 
 export async function deleteTask(taskId: string, orgId: string) {
   const validatedTaskId = uuidSchema.parse(taskId);
@@ -23,6 +24,31 @@ export async function deleteTask(taskId: string, orgId: string) {
   if (!task) {
     throw new Error("Task not found");
   }
+
+  const [projectResult, assignments] = await Promise.all([
+    task.project_id
+      ? ctx.supabase
+          .from("projects")
+          .select("name")
+          .eq("id", task.project_id)
+          .eq("organization_id", ctx.organizationId)
+          .is("deleted_at", null)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    listAssignments(ctx.supabase, {
+      organizationId: ctx.organizationId,
+      taskId: validatedTaskId,
+      active: true,
+    }),
+  ]);
+
+  if (projectResult.error) {
+    throw new Error(projectResult.error.message);
+  }
+
+  const projectName = projectResult.data?.name ?? "No Project";
+  const assigneeName = assignments[0]?.profile?.name ?? null;
+
   await deleteTaskService(ctx.supabase, {
     organizationId: ctx.organizationId,
     taskId: validatedTaskId,
@@ -51,6 +77,11 @@ export async function deleteTask(taskId: string, orgId: string) {
         after: null,
       },
       {
+        field: "project",
+        before: projectName,
+        after: null,
+      },
+      {
         field: "start_date",
         before: task.start_date,
         after: null,
@@ -60,6 +91,15 @@ export async function deleteTask(taskId: string, orgId: string) {
         before: task.due_date,
         after: null,
       },
+      ...(assigneeName
+        ? [
+            {
+              field: "assignee",
+              before: assigneeName,
+              after: null,
+            },
+          ]
+        : []),
     ],
   });
 
