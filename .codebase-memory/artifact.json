@@ -1,11 +1,11 @@
 {
     "schema_version": 1,
-    "commit": "7b3c7f8ba1281c2ed7b0bc0bd353299b5dd5ca93",
-    "indexed_at": "2026-07-04T11:56:23Z",
+    "commit": "b33b105f0433724d4d86e88263827ccf12e3571c",
+    "indexed_at": "2026-07-04T12:49:49Z",
     "project": "home-bilal-mohammed-Documents-Coding-Projects-taskmanager-supersaiyan",
-    "nodes": 2337,
-    "edges": 5950,
-    "original_size": 10354688,
-    "compressed_size": 1335138,
+    "nodes": 2373,
+    "edges": 6065,
+    "original_size": 10420224,
+    "compressed_size": 1355627,
     "compression_level": 3
 }

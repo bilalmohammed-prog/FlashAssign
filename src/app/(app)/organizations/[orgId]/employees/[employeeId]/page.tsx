@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { AppModal } from "@/components/ui/app-modal";
 import { Input } from "@/components/ui/input";
 import { ExpandableDescription } from "@/components/tasks/ExpandableDescription";
+import { TaskComments } from "@/components/tasks/TaskComments";
 import { useToast } from "@/components/providers/toast";
 import { getWorkspaceCapabilities, canEditTask } from "@/lib/auth/ui-capabilities";
 import { isAppRole, toAppRole } from "@/lib/auth/permissions";
@@ -64,6 +65,8 @@ const desktopTasksTableGrid =
 
 type TaskRowProps = {
   task: EmployeeTaskRpc;
+  orgId: string;
+  currentUserId: string | null;
   canManage: boolean;
   canEditStatus: boolean;
   deleteMode: boolean;
@@ -90,6 +93,8 @@ function isTaskOverdue(task: { due_date?: string | null; status?: string }): boo
 
 const EmployeeTaskRow = memo(function EmployeeTaskRow({
   task,
+  orgId,
+  currentUserId,
   canManage,
   canEditStatus,
   deleteMode,
@@ -152,6 +157,12 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
           }}
           disabled={fieldsDisabled}
           className={`mt-1 ${selectedForDelete ? "opacity-90" : ""}`}
+        />
+        <TaskComments
+          taskId={task.id}
+          orgId={orgId}
+          currentUserId={currentUserId}
+          canManageAll={canManage}
         />
         <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-zinc-500 md:hidden">
           <span
@@ -825,6 +836,8 @@ const canEditStatusForEmployee = useMemo(
               <EmployeeTaskRow
                 key={task.id}
                 task={task}
+                orgId={orgId}
+                currentUserId={currentUserId}
                 canManage={canManage}
                 
                 canEditStatus={canEditStatusForEmployee}

@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { AppModal } from "@/components/ui/app-modal";
 import { Input } from "@/components/ui/input";
 import { ExpandableDescription } from "@/components/tasks/ExpandableDescription";
+import { TaskComments } from "@/components/tasks/TaskComments";
 import { TaskSelectionIndicator } from "@/components/tasks/TaskSelectionIndicator";
 import { useToast } from "@/components/providers/toast";
 import type { AppRole } from "@/lib/auth/permissions";
@@ -83,6 +84,8 @@ const desktopTasksTableGrid =
 
 type TaskRowProps = {
   task: ProjectTaskRpc;
+  orgId: string;
+  currentUserId: string | null;
   canManage: boolean;
   canEditStatus: boolean;
   deleteMode: boolean;
@@ -114,6 +117,8 @@ function isTaskOverdue(task: { due_date?: string | null; status?: string }): boo
 
 const TaskRow = memo(function TaskRow({
   task,
+  orgId,
+  currentUserId,
   canManage,
   canEditStatus,
   deleteMode,
@@ -177,6 +182,12 @@ const overdue = isTaskOverdue(task);
           }}
           disabled={fieldsDisabled}
           className={`mt-1 ${selectedForDelete ? "opacity-90" : ""}`}
+        />
+        <TaskComments
+          taskId={task.id}
+          orgId={orgId}
+          currentUserId={currentUserId}
+          canManageAll={canManage}
         />
         <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-zinc-500 md:hidden">
           <span
@@ -1002,6 +1013,8 @@ void fetchTasks(offsetRef.current, true);
               <TaskRow
                 key={task.id}
                 task={task}
+                orgId={orgId}
+                currentUserId={userId}
                 canManage={canManage}
                 canEditStatus={canEditTask(role, {
                   userId,
