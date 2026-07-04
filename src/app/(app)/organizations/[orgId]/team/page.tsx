@@ -8,6 +8,7 @@ import { uuidSchema } from "@/lib/validation/common";
 import type { Database } from "@/lib/types/database";
 import TeamTabsClient, { TeamMemberRow, TeamWorkloadRow } from "./team-tabs-client";
 import { z } from "zod";
+import { removeMember as removeMemberService } from "@/services/organization/member.service";
 
 type RoleType = Database["public"]["Enums"]["role_type"];
 
@@ -318,17 +319,11 @@ export default async function TeamPage({
       }
     }
 
-    const { error: deleteError } = await orgCtx.supabase
-      .from("org_members")
-      .delete()
-      .eq("organization_id", orgCtx.organizationId)
-      .eq("user_id", userId);
-
-    if (deleteError) {
-      redirect(
-        `/organizations/${organizationId}/team?tab=members&status=error&message=${encodeQueryMessage(deleteError.message)}`
-      );
-    }
+    await removeMemberService(orgCtx.supabase, {
+      organizationId: orgCtx.organizationId,
+      userId,
+      actorId: orgCtx.userId,
+    });
 
     revalidatePath(`/organizations/${organizationId}/team`);
     redirect(

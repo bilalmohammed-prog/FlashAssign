@@ -4,6 +4,7 @@ import { fail } from "@/lib/api/response";
 import { requireActionUser } from "@/actions/_helpers/requireOrgContext";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { uuidSchema } from "@/lib/validation/common";
+import { addMember as addMemberService } from "@/services/organization/member.service";
 
 const acceptInviteBodySchema = z.object({
   invite_id: uuidSchema,
@@ -47,20 +48,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invite has expired" }, { status: 400 });
     }
 
-    const { error: memberUpsertError } = await supabaseAdmin
-      .from("org_members")
-      .upsert(
-        {
-          organization_id: invite.organization_id,
-          user_id: userId,
-          role: "employee",
-        },
-        { onConflict: "organization_id,user_id" }
-      );
-
-    if (memberUpsertError) {
-      return NextResponse.json({ error: memberUpsertError.message }, { status: 500 });
-    }
+    const { created } = await addMemberService(supabaseAdmin, {
+      organizationId: invite.organization_id,
+      userId,
+      role: "employee",
+      actorId: userId,
+    });
 
     const now = new Date().toISOString();
     const { error: inviteUpdateError } = await supabaseAdmin
@@ -100,6 +93,7 @@ export async function POST(req: Request) {
       data: {
         inviteId: invite.id,
         organizationId: invite.organization_id,
+        created,
       },
     });
   } catch (err) {

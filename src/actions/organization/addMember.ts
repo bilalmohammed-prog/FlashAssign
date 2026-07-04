@@ -42,6 +42,7 @@ export async function addMember(
       organizationId: ctx.organizationId,
       userId: validated.userId,
       role: validated.role,
+      actorId: ctx.userId,
     });
 
     return {
