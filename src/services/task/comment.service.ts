@@ -9,9 +9,8 @@ import type { Database, Tables, TablesInsert } from "@/lib/types/database";
 
 type TaskTenantRow = Pick<
   Tables<"tasks">,
-  "id" | "organization_id" | "project_id" | "deleted_at"
+  "id" | "organization_id" | "deleted_at"
 >;
-
 type CommentRow = Tables<"comments">;
 
 export type CommentWithAuthor = CommentRow & {
@@ -21,8 +20,8 @@ export type CommentWithAuthor = CommentRow & {
   } | null;
 };
 
-function canManageComment(role: AppRole, _actorId: string, _comment: CommentRow): boolean {
-  return role === "owner" || role === "admin";
+function canManageComment(role: AppRole, actorId: string, comment: CommentRow): boolean {
+  return role === "owner" || role === "admin" || role === "manager" || comment.user_id === actorId;
 }
 
 async function assertTaskInOrganization(
@@ -31,7 +30,7 @@ async function assertTaskInOrganization(
 ): Promise<TaskTenantRow> {
   const { data, error } = await supabase
     .from("tasks")
-    .select("id,organization_id,project_id,deleted_at")
+    .select("id,organization_id,deleted_at")
     .eq("id", params.taskId)
     .eq("organization_id", params.organizationId)
     .is("deleted_at", null)
@@ -60,6 +59,7 @@ async function getCommentForTask(
     .eq("id", params.commentId)
     .eq("task_id", params.taskId)
     .eq("organization_id", params.organizationId)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (error) {
@@ -81,9 +81,10 @@ export async function listCommentsForTask(
 
   const { data, error } = await supabase
     .from("comments")
-    .select("id,task_id,user_id,content,created_at,organization_id,project_id")
+    .select("id,task_id,user_id,content,created_at,updated_at,deleted_at,organization_id")
     .eq("organization_id", params.organizationId)
     .eq("task_id", params.taskId)
+    .is("deleted_at", null)
     .order("created_at", { ascending: true });
 
   if (error) {
@@ -114,30 +115,28 @@ export async function listCommentsForTask(
   const profileById = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
 
   return rows.map((row) => {
-    const profile = row.user_id ? profileById.get(row.user_id) : undefined;
-    return {
-      id: row.id,
-      task_id: row.task_id,
-      user_id: row.user_id,
-      content: row.content,
-      created_at: row.created_at,
-      organization_id: row.organization_id,
-      project_id: row.project_id,
-      author: profile
-        ? {
-            id: profile.id,
-            full_name: profile.full_name ?? null,
-          }
-        : null,
-    };
-  });
+  const profile = row.user_id ? profileById.get(row.user_id) : undefined;
+  return {
+    id: row.id,
+    task_id: row.task_id,
+    user_id: row.user_id,
+    content: row.content,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    deleted_at: row.deleted_at,
+    organization_id: row.organization_id,
+    author: profile
+      ? { id: profile.id, full_name: profile.full_name ?? null }
+      : null,
+  };
+});
 }
 
 export async function createCommentForTask(
   supabase: SupabaseClient<Database>,
   params: { organizationId: string; userId: string; taskId: string; content: string }
 ): Promise<CommentRow> {
-  const task = await assertTaskInOrganization(supabase, {
+  await assertTaskInOrganization(supabase, {
     organizationId: params.organizationId,
     taskId: params.taskId,
   });
@@ -147,7 +146,6 @@ export async function createCommentForTask(
     task_id: params.taskId,
     user_id: params.userId,
     content: params.content,
-    project_id: task.project_id ?? null,
   };
 
   const { data, error } = await supabase
@@ -197,10 +195,14 @@ export async function updateCommentForTask(
 
   const { data, error } = await supabase
     .from("comments")
-    .update({ content: params.content })
+    .update({
+      content: params.content,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", params.commentId)
     .eq("task_id", params.taskId)
     .eq("organization_id", params.organizationId)
+    .is("deleted_at", null)
     .select("*")
     .maybeSingle();
 
@@ -244,10 +246,11 @@ export async function deleteCommentForTask(
 
   const { data, error } = await supabase
     .from("comments")
-    .delete()
+    .update({ deleted_at: new Date().toISOString() })
     .eq("id", params.commentId)
     .eq("task_id", params.taskId)
     .eq("organization_id", params.organizationId)
+    .is("deleted_at", null)
     .select("id")
     .maybeSingle();
 

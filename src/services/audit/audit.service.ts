@@ -9,7 +9,6 @@ type AuditChange = {
   before: Json;
   after: Json;
 };
-
 type CreateAuditLogParams = {
   organizationId: string;
   projectId: string | null;
@@ -105,5 +104,8 @@ export async function fetchAuditLogs(
     });
   }
 
-  return (data ?? []) as AuditLog[];
+  return (data ?? []).map((log) => ({
+  ...log,
+  changes: log.changes as AuditChange[],
+}));
 }

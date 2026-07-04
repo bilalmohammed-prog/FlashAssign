@@ -48,5 +48,10 @@ export async function fetchAuditLogs(params: {
   });
 
   if (error) throw error;
-  return data as AuditLog[];
+  const logs = data.map(log => ({
+  ...log,
+    changes: log.changes as AuditChange[],
+  }));
+
+  return logs;
 }
