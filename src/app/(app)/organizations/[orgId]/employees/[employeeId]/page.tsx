@@ -23,8 +23,7 @@ import { usePageHeader } from "@/components/layout/PageHeaderContext";
 import { Button } from "@/components/ui/button";
 import { AppModal } from "@/components/ui/app-modal";
 import { Input } from "@/components/ui/input";
-import { DescriptionEditor } from "@/components/tasks/DescriptionEditor";
-import { CommentsPanel } from "@/components/tasks/CommentsPanel";
+import { TaskDetailsPanels } from "@/components/tasks/TaskDetailsPanels";
 import { useToast } from "@/components/providers/toast";
 import { getWorkspaceCapabilities, canEditTask } from "@/lib/auth/ui-capabilities";
 import { isAppRole, toAppRole } from "@/lib/auth/permissions";
@@ -271,29 +270,17 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
       </div>
 
       {isExpanded && (
-        <div className="expanded-panel border-t border-zinc-100 px-4 py-4 md:px-6">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:items-stretch">
-            <div className="h-[420px]">
-              <DescriptionEditor
-                value={descriptionValue}
-                onChange={setDescriptionValue}
-                onCommit={(v) =>
-                  v !== (task.description ?? "") &&
-                  onCommitUpdate(task.id, { description: v.trim() ? v : null })
-                }
-                disabled={fieldsDisabled}
-              />
-            </div>
-            <div className="h-[420px]">
-              <CommentsPanel
-                taskId={task.id}
-                orgId={orgId}
-                currentUserId={currentUserId}
-                canManageAll={canManage}
-              />
-            </div>
-          </div>
-        </div>
+        <TaskDetailsPanels
+          taskId={task.id}
+          orgId={orgId}
+          currentUserId={currentUserId}
+          descriptionValue={descriptionValue}
+          persistedDescription={task.description}
+          canEditDescription={!fieldsDisabled}
+          canManageComments={canManage}
+          onDescriptionChange={setDescriptionValue}
+          onCommitUpdate={onCommitUpdate}
+        />
       )}
     </div>
   );

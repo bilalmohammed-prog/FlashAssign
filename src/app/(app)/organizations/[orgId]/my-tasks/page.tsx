@@ -12,6 +12,7 @@ import {
   ArrowUpDown,
   Trash2,
   X,
+  ChevronRight,
 } from "lucide-react";
 import type { Enums, TablesUpdate } from "@/lib/types/database";
 import { updateTask } from "@/actions/task/update";
@@ -21,7 +22,7 @@ import { usePageHeader } from "@/components/layout/PageHeaderContext";
 import { Button } from "@/components/ui/button";
 import { AppModal } from "@/components/ui/app-modal";
 import { Input } from "@/components/ui/input";
-import { ExpandableDescription } from "@/components/tasks/ExpandableDescription";
+import { TaskDetailsPanels } from "@/components/tasks/TaskDetailsPanels";
 import { useToast } from "@/components/providers/toast";
 import { getWorkspaceCapabilities, canEditTask } from "@/lib/auth/ui-capabilities";
 import { isAppRole, toAppRole } from "@/lib/auth/permissions";
@@ -72,6 +73,10 @@ type TaskRowProps = {
   onCommitUpdate: (taskId: string, updates: TablesUpdate<"tasks">) => void;
   onProjectChange: (taskId: string, projectId: string | null) => void;
   onToggleDeleteSelection: (taskId: string) => void;
+  orgId: string;
+  currentUserId: string | null;
+  isExpanded: boolean;
+  onToggleExpand: (taskId: string) => void;
 };
 
 function isTaskOverdue(task: { due_date?: string | null; status?: string }): boolean {
@@ -98,6 +103,10 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
   onCommitUpdate,
   onProjectChange,
   onToggleDeleteSelection,
+  orgId,
+  currentUserId,
+  isExpanded,
+  onToggleExpand,
 }: TaskRowProps) {
   const [titleValue, setTitleValue] = useState(task.title);
   const [descriptionValue, setDescriptionValue] = useState(task.description ?? "");
@@ -111,47 +120,50 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
 
   return (
     <div
-      className={`group relative flex flex-col items-start gap-3 px-4 py-4 transition-colors md:grid md:items-center md:gap-4 md:px-6 md:py-3.5 ${desktopTasksTableGrid} ${rowClassName}`}
+      className={`task-row-wrapper group relative flex flex-col transition-colors ${rowClassName}`}
     >
-      <div className="flex w-full min-w-0 flex-col">
-        <input
-          value={titleValue}
-          onChange={(e) => setTitleValue(e.target.value)}
-          onBlur={(e) => {
-            if (e.target.value !== task.title) {
-              onCommitUpdate(task.id, { title: e.target.value });
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
-          }}
-          disabled={fieldsDisabled}
-          className={`w-full truncate rounded px-1.5 py-0.5 text-[15px] font-medium outline-none transition-colors disabled:cursor-default
-            ${
-              !fieldsDisabled
-                ? "border border-transparent hover:border-zinc-300 hover:bg-zinc-50 focus:border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500 cursor-text"
-                : "bg-transparent border-transparent"
-            }
-            ${
-              selectedForDelete
-                ? "line-through text-red-950/80 opacity-90"
-                : task.status === "done"
-                ? "text-zinc-900"
-                : "text-zinc-900"
-            }
-          `}
-        />
-        <ExpandableDescription
-          value={descriptionValue}
-          onChange={(nextValue) => setDescriptionValue(nextValue)}
-          onCommit={(nextValue) => {
-            if (nextValue !== (task.description ?? "")) {
-              onCommitUpdate(task.id, { description: nextValue.trim() ? nextValue : null });
-            }
-          }}
-          disabled={fieldsDisabled}
-          className={`mt-1 ${selectedForDelete ? "opacity-90" : ""}`}
-        />
+      <div
+        className={`task-grid-row flex flex-col items-start gap-3 px-4 py-4 md:grid md:items-center md:gap-4 md:px-6 md:py-3.5 ${desktopTasksTableGrid}`}
+      >
+        <div className="flex w-full min-w-0 flex-col">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => onToggleExpand(task.id)}
+              className="shrink-0 text-zinc-400 transition-transform duration-150 hover:text-zinc-700"
+              style={{ transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)" }}
+              aria-label={isExpanded ? "Collapse" : "Expand"}
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+            <input
+              value={titleValue}
+              onChange={(e) => setTitleValue(e.target.value)}
+              onBlur={(e) => {
+                if (e.target.value !== task.title) {
+                  onCommitUpdate(task.id, { title: e.target.value });
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
+              disabled={fieldsDisabled}
+              className={`w-full truncate rounded px-1.5 py-0.5 text-[15px] font-medium outline-none transition-colors disabled:cursor-default
+                ${
+                  !fieldsDisabled
+                    ? "cursor-text border border-transparent hover:border-zinc-300 hover:bg-zinc-50 focus:border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500"
+                    : "border-transparent bg-transparent"
+                }
+                ${
+                  selectedForDelete
+                    ? "line-through text-red-950/80 opacity-90"
+                    : task.status === "done"
+                    ? "text-zinc-900"
+                    : "text-zinc-900"
+                }
+              `}
+            />
+          </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-zinc-500 md:hidden">
           <span
             className={`rounded px-2 py-0.5 text-xs font-medium ${getTaskStatusBadgeClass(
@@ -255,6 +267,21 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
           </button>
         )}
       </div>
+      </div>
+
+      {isExpanded && (
+        <TaskDetailsPanels
+          taskId={task.id}
+          orgId={orgId}
+          currentUserId={currentUserId}
+          descriptionValue={descriptionValue}
+          persistedDescription={task.description}
+          canEditDescription={!fieldsDisabled}
+          canManageComments={canManage}
+          onDescriptionChange={setDescriptionValue}
+          onCommitUpdate={onCommitUpdate}
+        />
+      )}
     </div>
   );
 });
@@ -328,6 +355,10 @@ export default function MyTasksPage() {
   const isFirstRender = useRef(true);
   const headingRef = useRef<HTMLDivElement>(null);
   const [headingGone, setHeadingGone] = useState(false);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const toggleExpand = useCallback((taskId: string) => {
+    setExpandedTaskId((prev) => (prev === taskId ? null : taskId));
+  }, []);
   
   useEffect(() => {
     void supabase.auth.getUser().then(({ data }) => {
@@ -807,6 +838,8 @@ const canEditStatusForUser = useMemo(
               <EmployeeTaskRow
                 key={task.id}
                 task={task}
+                orgId={orgId}
+                currentUserId={currentUserId}
                 canManage={canManage}
                 
                 canEditStatus={canEditStatusForUser}
@@ -817,6 +850,8 @@ const canEditStatusForUser = useMemo(
                 onCommitUpdate={commitTaskUpdate}
                 onProjectChange={handleProjectAssignment}
                 onToggleDeleteSelection={toggleTaskSelection}
+                isExpanded={expandedTaskId === task.id}
+                onToggleExpand={toggleExpand}
               />
             ))}
           </div>
