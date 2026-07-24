@@ -214,7 +214,13 @@ export function CommentsPanel({
 
   return (
      <div className="flex h-full flex-col">
+        
         <div className="flex h-full flex-col rounded-md border border-zinc-200 bg-white p-3">
+
+        <h3 className="mb-2 text-[13px] font-medium text-zinc-500">
+            Comments
+        </h3>
+
           {loading ? (
             <div className="mb-3 flex items-center gap-2 px-1 py-2 text-xs text-zinc-500">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -232,6 +238,7 @@ export function CommentsPanel({
 
                 return (
                   <div key={comment.id} className="flex gap-2">
+                    
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs font-semibold text-zinc-600">
                       {getInitial(comment)}
                     </div>
