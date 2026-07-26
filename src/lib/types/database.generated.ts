@@ -572,14 +572,17 @@ export type Database = {
       get_audit_logs: {
         Args: {
           p_action?: string
+          p_actor_id?: string
           p_cursor?: string
           p_entity_type?: string
+          p_from_date?: string
           p_limit?: number
           p_organization_id: string
           p_project_id?: string
           p_search?: string
           p_sort_by?: string
           p_sort_dir?: string
+          p_to_date?: string
         }
         Returns: {
           action: string

@@ -13,6 +13,9 @@ export async function listAuditLogs(params: {
   action?: "CREATE" | "UPDATE" | "DELETE";
 
   entityType?: "task" | "project" | "member" | "org";
+  actorId?: string;
+  fromDate?: string;
+  toDate?: string;
 
   sortBy?: "created_at" | "action" | "entity_type";
 
@@ -34,6 +37,9 @@ export async function listAuditLogs(params: {
     search: params.search,
     action: params.action,
     entityType: params.entityType,
+    actorId: params.actorId,
+    fromDate: params.fromDate,
+    toDate: params.toDate,
     sortBy: params.sortBy,
     sortDirection: params.sortOrder,
     cursor: params.cursor,

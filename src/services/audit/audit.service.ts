@@ -74,6 +74,9 @@ export async function fetchAuditLogs(
     search?: string;
     action?: "CREATE" | "UPDATE" | "DELETE";
     entityType?: "task" | "project" | "member" | "org";
+    actorId?: string;
+    fromDate?: string;
+    toDate?: string;
 
     sortBy?: "created_at" | "action" | "entity_type";
     sortDirection?: "asc" | "desc";
@@ -89,6 +92,9 @@ export async function fetchAuditLogs(
     p_search: params.search ?? undefined,
     p_action: params.action ?? undefined,
     p_entity_type: params.entityType,
+    p_actor_id: params.actorId ?? undefined,
+    p_from_date: params.fromDate ?? undefined,
+    p_to_date: params.toDate ?? undefined,
 
     p_sort_by: params.sortBy ?? "created_at",
     p_sort_dir: params.sortDirection ?? "desc",
