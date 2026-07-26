@@ -57,7 +57,7 @@ export async function deleteTaskComment(
         entityId: validatedTaskId,
         changes: [
           {
-            field: `comment:${validatedCommentId}`,
+            field: "comment",
             before: before?.content ?? null,
             after: null,
           },

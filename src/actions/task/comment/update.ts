@@ -64,7 +64,7 @@ export async function updateTaskComment(
         entityId: validatedTaskId,
         changes: [
           {
-            field: `comment:${comment.id}`,
+            field: "comment",
             before: before?.content ?? null,
             after: comment.content,
           },

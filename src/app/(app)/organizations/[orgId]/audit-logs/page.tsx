@@ -2,17 +2,14 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams } from "next/navigation";
-import { format, formatDistanceToNowStrict } from "date-fns";
+import { format } from "date-fns";
 import {
   Search,
   MoreHorizontal,
-  Clock,
   ArrowRight,
   ChevronRight,
   ClipboardList,
   X,
-  Copy,
-  Check,
   AlertTriangle,
   RefreshCw,
 } from "lucide-react";
@@ -33,19 +30,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+
 // --- Types ---
 
 type AuditGroup = {
@@ -111,44 +102,38 @@ const PRIORITY_COLORS: Record<string, string> = {
   urgent: "bg-red-50 text-red-700 border-red-200/60",
 };
 
+// --- Dropdown ---
+
 function ChangesDropdown({
   group,
   onClose,
-  onOpenSheet,
 }: {
   group: AuditGroup;
   onClose: () => void;
-  onOpenSheet: () => void;
 }) {
-  const allChanges = group.logs.flatMap((log) => log.changes);
-  const exactTime = format(new Date(group.created_at), "PPp");
+  const HIDDEN_FIELDS = new Set(["comment_id", "parent_comment_id"]);
+
+const allChanges = group.logs
+  .flatMap((log) => log.changes)
+  .filter((c) => !HIDDEN_FIELDS.has(c.field));
+
+const changeCount = allChanges.length;
+
+  const dateStr = format(new Date(group.created_at), "d MMM yyyy");
 
   return (
-    <div className="w-[380px] space-y-4 p-1">
-      {/* Header */}
+    <div className="w-[380px] space-y-3 p-1">
       <div className="flex items-center justify-between px-3 pt-2 pb-1">
         <div className="flex items-center gap-2">
           <ActionBadge action={group.action} />
           <EntityBadge entityType={group.entity_type} />
         </div>
-        <span className="text-[11px] tabular-nums text-zinc-400">{exactTime}</span>
-      </div>
-
-      {/* Actor row */}
-      <div className="flex items-center gap-2 px-3 py-1.5">
-        <Avatar className="h-6 w-6 border border-zinc-200">
-          <AvatarFallback className="bg-zinc-100 text-[10px] font-medium text-zinc-600">
-            {getInitials(group.actor_name)}
-          </AvatarFallback>
-        </Avatar>
-        <span className="text-sm font-medium text-zinc-800">{group.actor_name}</span>
-        <span className="ml-auto font-mono text-[11px] text-zinc-400">{group.entity_id}</span>
+        <span className="text-[11px] tabular-nums text-zinc-400">{dateStr}</span>
       </div>
 
       <div className="h-px bg-zinc-100" />
 
-      {/* Changes list */}
-      <div className="max-h-[320px] space-y-2 overflow-y-auto px-1 pb-1">
+      <div className="max-h-[340px] space-y-2 overflow-y-auto px-1 pb-1">
         {allChanges.length > 0 ? (
           allChanges.map((change, index) => (
             <ChangeCard
@@ -165,23 +150,11 @@ function ChangesDropdown({
           </p>
         )}
       </div>
-
-      {/* Footer link to full details */}
-      <div className="h-px bg-zinc-100" />
-      <button
-    type="button"
-    onClick={() => {
-      onClose();
-      onOpenSheet();
-    }}
-    className="flex w-full items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-zinc-500 transition-colors hover:text-indigo-600"
-  >
-    View full details
-    <ChevronRight className="h-3 w-3" />
-  </button>
     </div>
   );
 }
+
+// --- Grouping ---
 
 function groupAuditLogs(logs: AuditLog[]): AuditGroup[] {
   const groups: AuditGroup[] = [];
@@ -250,7 +223,9 @@ function getInitials(name: string) {
 }
 
 function fieldLabel(field: string) {
-  return field
+  const displayField = field.startsWith("comment:") ? "comment" : field;
+
+  return displayField
     .split("_")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
@@ -261,7 +236,7 @@ function formatVal(value: unknown) {
   if (typeof value === "string") {
     if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
       try {
-        return format(new Date(value), "MMM d, yyyy");
+        return format(new Date(value), "d MMM yyyy");
       } catch {
         return value;
       }
@@ -320,45 +295,6 @@ function EntityBadge({ entityType }: { entityType: string }) {
   );
 }
 
-function CopyIconButton({ value, label }: { value: string; label: string }) {
-  const { addToast } = useToast();
-  const [copied, setCopied] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
-
-  const handleCopy = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      addToast(`${label} copied to clipboard`, "success");
-      timeoutRef.current = setTimeout(() => setCopied(false), 1500);
-    } catch {
-      addToast(`Couldn't copy ${label.toLowerCase()}`, "error");
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      aria-label={`Copy ${label}`}
-      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-    >
-      {copied ? (
-        <Check className="h-3.5 w-3.5 text-emerald-600" />
-      ) : (
-        <Copy className="h-3.5 w-3.5" />
-      )}
-    </button>
-  );
-}
-
 function FilterChip({
   label,
   onRemove,
@@ -390,7 +326,6 @@ export default function AuditLogsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [hasMore, setHasMore] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState<AuditGroup | null>(null);
   const [headingGone, setHeadingGone] = useState(false);
 
   const [filters, setFilters] = useState<AuditFilters>(EMPTY_FILTERS);
@@ -419,7 +354,6 @@ export default function AuditLogsPage() {
     return () => obs.disconnect();
   }, []);
 
-  // "/" focuses search, matching the shortcut convention of Linear/GitHub.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "/" || e.metaKey || e.ctrlKey) return;
@@ -445,6 +379,14 @@ export default function AuditLogsPage() {
       cancelled = true;
     };
   }, [orgId]);
+
+  const actorEmailMap = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const m of members) {
+      map.set(m.user_id, m.email);
+    }
+    return map;
+  }, [members]);
 
   const loadLogs = useCallback(
     async (isNewSearch: boolean, pageCursor?: string) => {
@@ -849,13 +791,12 @@ export default function AuditLogsPage() {
                     </div>
                   ))
                 : groupedLogs.map((group) => (
-                  <AuditLogGroupRow
-                    key={group.id}
-                    group={group}
-                    isSelected={selectedGroup?.id === group.id}
-                    onOpenSheet={() => setSelectedGroup(group)}
-                  />
-                ))}
+                    <AuditLogGroupRow
+                      key={group.id}
+                      group={group}
+                      actorEmail={actorEmailMap.get(group.actor_id ?? "") ?? null}
+                    />
+                  ))}
             </div>
 
             <div ref={sentinelRef} className="h-px w-full bg-transparent" />
@@ -881,11 +822,6 @@ export default function AuditLogsPage() {
           </div>
         )}
       </div>
-
-      <AuditLogDetailsSheet
-        group={selectedGroup}
-        onClose={() => setSelectedGroup(null)}
-      />
     </div>
   );
 }
@@ -894,21 +830,17 @@ export default function AuditLogsPage() {
 
 function AuditLogGroupRow({
   group,
-  isSelected,
-  onOpenSheet,
+  actorEmail,
 }: {
   group: AuditGroup;
-  isSelected: boolean;
-  onOpenSheet: () => void;
+  actorEmail: string | null;
 }) {
   const allChanges = group.logs.flatMap((log) => log.changes);
   const changeCount = allChanges.length;
   const mergedCount = group.logs.length;
   const [isOpen, setIsOpen] = useState(false);
 
-  const timestamp = new Date(group.created_at);
-  const relativeTime = formatDistanceToNowStrict(timestamp, { addSuffix: true });
-  const exactTime = format(timestamp, "PPp");
+  const dateStr = format(new Date(group.created_at), "d MMM yyyy");
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -918,10 +850,8 @@ function AuditLogGroupRow({
           tabIndex={0}
           aria-label={`${group.actor_name} ${ACTION_LABELS[group.action] ?? group.action} on ${
             ENTITY_LABELS[group.entity_type] ?? group.entity_type
-          }, ${relativeTime}`}
-          className={`group flex cursor-pointer flex-col gap-3 px-4 py-4 outline-none transition-colors hover:bg-zinc-50 focus-visible:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 md:grid md:items-center md:gap-4 md:py-3.5 ${desktopAuditGrid} ${
-            isSelected ? "bg-indigo-50/50" : ""
-          }`}
+          }, ${dateStr}`}
+          className={`group flex cursor-pointer flex-col gap-3 px-4 py-4 outline-none transition-colors hover:bg-zinc-50 focus-visible:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 md:grid md:items-center md:gap-4 md:py-3.5 ${desktopAuditGrid}`}
         >
           <div className="flex min-w-0 items-center gap-3">
             <Avatar className="h-8 w-8 shrink-0 border border-zinc-200">
@@ -941,9 +871,9 @@ function AuditLogGroupRow({
                   </span>
                 )}
               </span>
-              {group.actor_id && (
-                <span className="hidden truncate font-mono text-xs text-zinc-400 md:block">
-                  {group.actor_id}
+              {actorEmail && (
+                <span className="hidden truncate text-xs text-zinc-400 md:block">
+                  {actorEmail}
                 </span>
               )}
             </div>
@@ -969,13 +899,9 @@ function AuditLogGroupRow({
           </div>
 
           <div className="hidden items-center justify-end gap-2 md:flex">
-            <div
-              className="flex items-center gap-1.5 whitespace-nowrap text-sm tabular-nums text-zinc-500"
-              title={exactTime}
-            >
-              <Clock className="h-3.5 w-3.5 opacity-70" />
-              {relativeTime}
-            </div>
+            <span className="whitespace-nowrap text-sm tabular-nums text-zinc-500">
+              {dateStr}
+            </span>
             <ChevronRight className="h-4 w-4 text-zinc-300 transition-colors group-hover:text-zinc-500" />
           </div>
 
@@ -987,10 +913,7 @@ function AuditLogGroupRow({
                 ? `${changeCount} ${changeCount === 1 ? "change" : "changes"}`
                 : "No details"}
             </span>
-            <span className="ml-auto flex items-center gap-1 tabular-nums">
-              <Clock className="h-3 w-3" />
-              {relativeTime}
-            </span>
+            <span className="ml-auto tabular-nums">{dateStr}</span>
           </div>
         </div>
       </PopoverTrigger>
@@ -1002,11 +925,7 @@ function AuditLogGroupRow({
         className="w-auto rounded-xl border border-zinc-200 bg-white p-0 shadow-xl"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <ChangesDropdown
-          group={group}
-          onClose={() => setIsOpen(false)}
-          onOpenSheet={onOpenSheet}
-        />
+        <ChangesDropdown group={group} onClose={() => setIsOpen(false)} />
       </PopoverContent>
     </Popover>
   );
@@ -1034,6 +953,7 @@ function ChangeCard({
         <span className="text-xs font-semibold text-zinc-500">
           {fieldLabel(field)}
         </span>
+        
       </div>
 
       {isUpdate ? (
@@ -1064,118 +984,5 @@ function ChangeCard({
         </div>
       )}
     </div>
-  );
-}
-
-// --- Details Drawer Component ---
-
-function AuditLogDetailsSheet({
-  group,
-  onClose,
-}: {
-  group: AuditGroup | null;
-  onClose: () => void;
-}) {
-  if (!group) return null;
-
-  const allChanges = group.logs.flatMap((log) => log.changes);
-  const exactTime = format(new Date(group.created_at), "PPp");
-
-  return (
-    <Sheet open={!!group} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-full overflow-y-auto border-l border-zinc-200 bg-white p-0 sm:max-w-md">
-        <div className="border-b border-zinc-200 bg-zinc-50 p-6">
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2 text-lg font-semibold text-zinc-900">
-              Event details
-              <ActionBadge action={group.action} />
-            </SheetTitle>
-            <SheetDescription className="text-zinc-500">{exactTime}</SheetDescription>
-          </SheetHeader>
-        </div>
-
-        <div className="space-y-8 p-6">
-          <section className="space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Actor
-            </h4>
-            <div className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-white p-3">
-              <Avatar className="h-10 w-10 border border-zinc-200">
-                <AvatarFallback className="bg-zinc-100 text-sm font-medium text-zinc-600">
-                  {getInitials(group.actor_name)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex min-w-0 flex-1 flex-col">
-                <span className="text-sm font-medium text-zinc-900">{group.actor_name}</span>
-                <span className="truncate font-mono text-xs text-zinc-500">
-                  {group.actor_id || "System"}
-                </span>
-              </div>
-              {group.actor_id && (
-                <CopyIconButton value={group.actor_id} label="Actor ID" />
-              )}
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Resource
-            </h4>
-            <div className="grid grid-cols-3 items-center gap-y-3 text-sm">
-              <div className="text-zinc-500">Type</div>
-              <div className="col-span-2">
-                <EntityBadge entityType={group.entity_type} />
-              </div>
-              <div className="text-zinc-500">ID</div>
-              <div className="col-span-2 flex items-center gap-1.5">
-                <span className="w-fit truncate rounded bg-zinc-100 px-2 py-1 font-mono text-xs text-zinc-700">
-                  {group.entity_id}
-                </span>
-                <CopyIconButton value={group.entity_id} label="Resource ID" />
-              </div>
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Changes ({allChanges.length})
-            </h4>
-
-            {allChanges.length > 0 ? (
-              <div className="max-h-[420px] space-y-2.5 overflow-y-auto pr-1">
-                {allChanges.map((change, index) => (
-                  <ChangeCard
-                    key={index}
-                    field={change.field}
-                    before={change.before}
-                    after={change.after}
-                    action={group.action}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50/60 p-4 text-center text-sm text-zinc-500">
-                No detailed field changes recorded for this event.
-              </div>
-            )}
-          </section>
-
-          <section className="space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Metadata
-            </h4>
-            <div className="grid grid-cols-3 items-center gap-y-3 text-sm text-zinc-600">
-              <div className="text-zinc-500">Event ID</div>
-              <div className="col-span-2 flex items-center gap-1.5">
-                <span className="truncate font-mono text-xs">{group.id}</span>
-                <CopyIconButton value={group.id} label="Event ID" />
-              </div>
-              <div className="text-zinc-500">Timestamp</div>
-              <div className="col-span-2">{exactTime}</div>
-            </div>
-          </section>
-        </div>
-      </SheetContent>
-    </Sheet>
   );
 }
