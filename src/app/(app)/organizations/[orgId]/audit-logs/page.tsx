@@ -41,7 +41,11 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { DatePicker } from "@/components/ui/date-picker";
-
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 // --- Types ---
 
 type AuditGroup = {
@@ -89,6 +93,95 @@ const ENTITY_LABELS: Record<string, string> = {
   member: "Member",
   org: "Organization",
 };
+
+// --- Badge color maps for smart rendering ---
+
+const STATUS_COLORS: Record<string, string> = {
+  todo: "bg-zinc-100 text-zinc-700 border-zinc-200",
+  in_progress: "bg-indigo-50 text-indigo-700 border-indigo-200/60",
+  done: "bg-emerald-50 text-emerald-700 border-emerald-200/60",
+  completed: "bg-emerald-50 text-emerald-700 border-emerald-200/60",
+  blocked: "bg-amber-50 text-amber-700 border-amber-200/60",
+};
+
+const PRIORITY_COLORS: Record<string, string> = {
+  low: "bg-sky-50 text-sky-700 border-sky-200/60",
+  medium: "bg-zinc-100 text-zinc-700 border-zinc-200",
+  high: "bg-orange-50 text-orange-700 border-orange-200/60",
+  urgent: "bg-red-50 text-red-700 border-red-200/60",
+};
+
+function ChangesDropdown({
+  group,
+  onClose,
+  onOpenSheet,
+}: {
+  group: AuditGroup;
+  onClose: () => void;
+  onOpenSheet: () => void;
+}) {
+  const allChanges = group.logs.flatMap((log) => log.changes);
+  const exactTime = format(new Date(group.created_at), "PPp");
+
+  return (
+    <div className="w-[380px] space-y-4 p-1">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 pt-2 pb-1">
+        <div className="flex items-center gap-2">
+          <ActionBadge action={group.action} />
+          <EntityBadge entityType={group.entity_type} />
+        </div>
+        <span className="text-[11px] tabular-nums text-zinc-400">{exactTime}</span>
+      </div>
+
+      {/* Actor row */}
+      <div className="flex items-center gap-2 px-3 py-1.5">
+        <Avatar className="h-6 w-6 border border-zinc-200">
+          <AvatarFallback className="bg-zinc-100 text-[10px] font-medium text-zinc-600">
+            {getInitials(group.actor_name)}
+          </AvatarFallback>
+        </Avatar>
+        <span className="text-sm font-medium text-zinc-800">{group.actor_name}</span>
+        <span className="ml-auto font-mono text-[11px] text-zinc-400">{group.entity_id}</span>
+      </div>
+
+      <div className="h-px bg-zinc-100" />
+
+      {/* Changes list */}
+      <div className="max-h-[320px] space-y-2 overflow-y-auto px-1 pb-1">
+        {allChanges.length > 0 ? (
+          allChanges.map((change, index) => (
+            <ChangeCard
+              key={index}
+              field={change.field}
+              before={change.before}
+              after={change.after}
+              action={group.action}
+            />
+          ))
+        ) : (
+          <p className="py-4 text-center text-xs text-zinc-400">
+            No field changes recorded.
+          </p>
+        )}
+      </div>
+
+      {/* Footer link to full details */}
+      <div className="h-px bg-zinc-100" />
+      <button
+    type="button"
+    onClick={() => {
+      onClose();
+      onOpenSheet();
+    }}
+    className="flex w-full items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-zinc-500 transition-colors hover:text-indigo-600"
+  >
+    View full details
+    <ChevronRight className="h-3 w-3" />
+  </button>
+    </div>
+  );
+}
 
 function groupAuditLogs(logs: AuditLog[]): AuditGroup[] {
   const groups: AuditGroup[] = [];
@@ -156,10 +249,53 @@ function getInitials(name: string) {
   );
 }
 
-function formatJsonValue(value: unknown) {
+function fieldLabel(field: string) {
+  return field
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+function formatVal(value: unknown) {
   if (value === null || value === undefined) return "—";
-  if (typeof value === "string") return value;
+  if (typeof value === "string") {
+    if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
+      try {
+        return format(new Date(value), "MMM d, yyyy");
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  }
   return JSON.stringify(value);
+}
+
+function tryBadge(val: string, map: Record<string, string>) {
+  const cls = map[val];
+  if (!cls) return null;
+  return (
+    <span
+      className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${cls}`}
+    >
+      {val.replace(/_/g, " ")}
+    </span>
+  );
+}
+
+function smartRender(value: unknown) {
+  if (value === null || value === undefined) {
+    return <span className="italic text-zinc-400">—</span>;
+  }
+  const str = String(value);
+  return (
+    tryBadge(str, STATUS_COLORS) ||
+    tryBadge(str, PRIORITY_COLORS) || (
+      <span className="break-all font-mono text-[13px] leading-relaxed">
+        {formatVal(value)}
+      </span>
+    )
+  );
 }
 
 // --- Shared small components ---
@@ -713,13 +849,13 @@ export default function AuditLogsPage() {
                     </div>
                   ))
                 : groupedLogs.map((group) => (
-                    <AuditLogGroupRow
-                      key={group.id}
-                      group={group}
-                      isSelected={selectedGroup?.id === group.id}
-                      onClick={() => setSelectedGroup(group)}
-                    />
-                  ))}
+                  <AuditLogGroupRow
+                    key={group.id}
+                    group={group}
+                    isSelected={selectedGroup?.id === group.id}
+                    onOpenSheet={() => setSelectedGroup(group)}
+                  />
+                ))}
             </div>
 
             <div ref={sentinelRef} className="h-px w-full bg-transparent" />
@@ -759,107 +895,174 @@ export default function AuditLogsPage() {
 function AuditLogGroupRow({
   group,
   isSelected,
-  onClick,
+  onOpenSheet,
 }: {
   group: AuditGroup;
   isSelected: boolean;
-  onClick: () => void;
+  onOpenSheet: () => void;
 }) {
   const allChanges = group.logs.flatMap((log) => log.changes);
   const changeCount = allChanges.length;
   const mergedCount = group.logs.length;
+  const [isOpen, setIsOpen] = useState(false);
 
   const timestamp = new Date(group.created_at);
   const relativeTime = formatDistanceToNowStrict(timestamp, { addSuffix: true });
   const exactTime = format(timestamp, "PPp");
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick();
-        }
-      }}
-      aria-label={`${group.actor_name} ${ACTION_LABELS[group.action] ?? group.action} on ${
-        ENTITY_LABELS[group.entity_type] ?? group.entity_type
-      }, ${relativeTime}`}
-      className={`group flex cursor-pointer flex-col gap-3 px-4 py-4 outline-none transition-colors hover:bg-zinc-50 focus-visible:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 md:grid md:items-center md:gap-4 md:py-3.5 ${desktopAuditGrid} ${
-        isSelected ? "bg-indigo-50/50" : ""
-      }`}
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <Avatar className="h-8 w-8 shrink-0 border border-zinc-200">
-          <AvatarFallback className="bg-zinc-100 text-xs font-medium text-zinc-600">
-            {getInitials(group.actor_name)}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex min-w-0 flex-col">
-          <span className="flex items-center gap-1.5 truncate text-sm font-medium text-zinc-900">
-            <span className="truncate">{group.actor_name}</span>
-            {mergedCount > 1 && (
-              <span
-                title={`${mergedCount} updates merged`}
-                className="shrink-0 rounded-full bg-zinc-100 px-1.5 py-px text-[11px] font-medium leading-normal text-zinc-500"
-              >
-                ×{mergedCount}
-              </span>
-            )}
-          </span>
-          {group.actor_id && (
-            <span className="hidden truncate font-mono text-xs text-zinc-400 md:block">
-              {group.actor_id}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="hidden md:block">
-        <ActionBadge action={group.action} />
-      </div>
-
-      <div className="hidden min-w-0 md:flex md:items-center">
-        <EntityBadge entityType={group.entity_type} />
-      </div>
-
-      <div className="hidden text-sm text-zinc-500 md:flex md:items-center">
-        {changeCount > 0 ? (
-          <span className="flex items-center gap-1.5">
-            <MoreHorizontal className="h-4 w-4 text-zinc-400 transition-colors group-hover:text-zinc-600" />
-            {changeCount} {changeCount === 1 ? "change" : "changes"}
-          </span>
-        ) : (
-          <span className="text-xs italic text-zinc-400">No details</span>
-        )}
-      </div>
-
-      <div className="hidden items-center justify-end gap-2 md:flex">
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
         <div
-          className="flex items-center gap-1.5 whitespace-nowrap text-sm tabular-nums text-zinc-500"
-          title={exactTime}
+          role="button"
+          tabIndex={0}
+          aria-label={`${group.actor_name} ${ACTION_LABELS[group.action] ?? group.action} on ${
+            ENTITY_LABELS[group.entity_type] ?? group.entity_type
+          }, ${relativeTime}`}
+          className={`group flex cursor-pointer flex-col gap-3 px-4 py-4 outline-none transition-colors hover:bg-zinc-50 focus-visible:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 md:grid md:items-center md:gap-4 md:py-3.5 ${desktopAuditGrid} ${
+            isSelected ? "bg-indigo-50/50" : ""
+          }`}
         >
-          <Clock className="h-3.5 w-3.5 opacity-70" />
-          {relativeTime}
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar className="h-8 w-8 shrink-0 border border-zinc-200">
+              <AvatarFallback className="bg-zinc-100 text-xs font-medium text-zinc-600">
+                {getInitials(group.actor_name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex min-w-0 flex-col">
+              <span className="flex items-center gap-1.5 truncate text-sm font-medium text-zinc-900">
+                <span className="truncate">{group.actor_name}</span>
+                {mergedCount > 1 && (
+                  <span
+                    title={`${mergedCount} updates merged`}
+                    className="shrink-0 rounded-full bg-zinc-100 px-1.5 py-px text-[11px] font-medium leading-normal text-zinc-500"
+                  >
+                    ×{mergedCount}
+                  </span>
+                )}
+              </span>
+              {group.actor_id && (
+                <span className="hidden truncate font-mono text-xs text-zinc-400 md:block">
+                  {group.actor_id}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="hidden md:block">
+            <ActionBadge action={group.action} />
+          </div>
+
+          <div className="hidden min-w-0 md:flex md:items-center">
+            <EntityBadge entityType={group.entity_type} />
+          </div>
+
+          <div className="hidden text-sm text-zinc-500 md:flex md:items-center">
+            {changeCount > 0 ? (
+              <span className="flex items-center gap-1.5">
+                <MoreHorizontal className="h-4 w-4 text-zinc-400 transition-colors group-hover:text-zinc-600" />
+                {changeCount} {changeCount === 1 ? "change" : "changes"}
+              </span>
+            ) : (
+              <span className="text-xs italic text-zinc-400">No details</span>
+            )}
+          </div>
+
+          <div className="hidden items-center justify-end gap-2 md:flex">
+            <div
+              className="flex items-center gap-1.5 whitespace-nowrap text-sm tabular-nums text-zinc-500"
+              title={exactTime}
+            >
+              <Clock className="h-3.5 w-3.5 opacity-70" />
+              {relativeTime}
+            </div>
+            <ChevronRight className="h-4 w-4 text-zinc-300 transition-colors group-hover:text-zinc-500" />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 md:hidden">
+            <ActionBadge action={group.action} />
+            <EntityBadge entityType={group.entity_type} />
+            <span>
+              {changeCount > 0
+                ? `${changeCount} ${changeCount === 1 ? "change" : "changes"}`
+                : "No details"}
+            </span>
+            <span className="ml-auto flex items-center gap-1 tabular-nums">
+              <Clock className="h-3 w-3" />
+              {relativeTime}
+            </span>
+          </div>
         </div>
-        <ChevronRight className="h-4 w-4 text-zinc-300 transition-colors group-hover:text-zinc-500" />
+      </PopoverTrigger>
+
+      <PopoverContent
+        align="start"
+        side="bottom"
+        sideOffset={4}
+        className="w-auto rounded-xl border border-zinc-200 bg-white p-0 shadow-xl"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <ChangesDropdown
+          group={group}
+          onClose={() => setIsOpen(false)}
+          onOpenSheet={onOpenSheet}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// --- Change Card (Split Cards pattern) ---
+
+function ChangeCard({
+  field,
+  before,
+  after,
+  action,
+}: {
+  field: string;
+  before: unknown;
+  after: unknown;
+  action: string;
+}) {
+  const isUpdate = action === "UPDATE";
+  const isDelete = action === "DELETE";
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-zinc-200">
+      <div className="border-b border-zinc-100 bg-zinc-50/80 px-3 py-1.5">
+        <span className="text-xs font-semibold text-zinc-500">
+          {fieldLabel(field)}
+        </span>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 md:hidden">
-        <ActionBadge action={group.action} />
-        <EntityBadge entityType={group.entity_type} />
-        <span>
-          {changeCount > 0
-            ? `${changeCount} ${changeCount === 1 ? "change" : "changes"}`
-            : "No details"}
-        </span>
-        <span className="ml-auto flex items-center gap-1 tabular-nums">
-          <Clock className="h-3 w-3" />
-          {relativeTime}
-        </span>
-      </div>
+      {isUpdate ? (
+        <div className="grid grid-cols-2 divide-x divide-zinc-100">
+          <div className="p-2.5">
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-red-400">
+              Before
+            </div>
+            {smartRender(before)}
+          </div>
+          <div className="p-2.5">
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-emerald-500">
+              After
+            </div>
+            {smartRender(after)}
+          </div>
+        </div>
+      ) : (
+        <div className="p-2.5">
+          <div
+            className={`mb-1.5 text-[10px] font-semibold uppercase tracking-widest ${
+              isDelete ? "text-red-400" : "text-emerald-500"
+            }`}
+          >
+            {isDelete ? "Removed" : "Set"}
+          </div>
+          {smartRender(isDelete ? before : after)}
+        </div>
+      )}
     </div>
   );
 }
@@ -939,49 +1142,16 @@ function AuditLogDetailsSheet({
             </h4>
 
             {allChanges.length > 0 ? (
-              <div className="overflow-hidden rounded-lg border border-zinc-200">
-                <div className="max-h-[340px] divide-y divide-zinc-100 overflow-y-auto">
-                  {allChanges.map((change, index) => (
-                    <div key={index} className="p-3">
-                      <div className="mb-2 text-xs font-semibold capitalize text-zinc-700">
-                        {change.field.replaceAll("_", " ")}
-                      </div>
-
-                      {group.action === "UPDATE" ? (
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="rounded-md border border-red-100 bg-red-50/60 p-2">
-                            <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-red-500">
-                              Before
-                            </div>
-                            <div className="break-all font-mono text-xs text-red-700">
-                              {formatJsonValue(change.before)}
-                            </div>
-                          </div>
-                          <div className="rounded-md border border-emerald-100 bg-emerald-50/60 p-2">
-                            <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-emerald-600">
-                              After
-                            </div>
-                            <div className="break-all font-mono text-xs text-emerald-700">
-                              {formatJsonValue(change.after)}
-                            </div>
-                          </div>
-                        </div>
-                      ) : group.action === "DELETE" ? (
-                        <div className="rounded-md border border-red-100 bg-red-50/60 p-2">
-                          <div className="break-all font-mono text-xs text-red-700">
-                            {formatJsonValue(change.before)}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="rounded-md border border-emerald-100 bg-emerald-50/60 p-2">
-                          <div className="break-all font-mono text-xs text-emerald-700">
-                            {formatJsonValue(change.after)}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+              <div className="max-h-[420px] space-y-2.5 overflow-y-auto pr-1">
+                {allChanges.map((change, index) => (
+                  <ChangeCard
+                    key={index}
+                    field={change.field}
+                    before={change.before}
+                    after={change.after}
+                    action={group.action}
+                  />
+                ))}
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50/60 p-4 text-center text-sm text-zinc-500">
