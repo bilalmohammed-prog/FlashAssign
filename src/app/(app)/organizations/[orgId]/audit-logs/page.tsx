@@ -10,6 +10,11 @@ import {
   ArrowRight,
   ChevronRight,
   ClipboardList,
+  X,
+  Copy,
+  Check,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 
 import { useToast } from "@/components/providers/toast";
@@ -21,6 +26,13 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -60,9 +72,23 @@ type OrganizationMember = {
 
 const GROUP_WINDOW_MS = 60000;
 const PAGE_SIZE = 25;
+const EMPTY_FILTERS: AuditFilters = { search: "" };
 
 const desktopAuditGrid =
-  "md:grid-cols-[minmax(0,1.6fr)_130px_170px_1fr_150px]";
+  "md:grid-cols-[minmax(0,1.6fr)_112px_150px_1fr_150px]";
+
+const ACTION_LABELS: Record<string, string> = {
+  CREATE: "Create",
+  UPDATE: "Update",
+  DELETE: "Delete",
+};
+
+const ENTITY_LABELS: Record<string, string> = {
+  task: "Task",
+  project: "Project",
+  member: "Member",
+  org: "Organization",
+};
 
 function groupAuditLogs(logs: AuditLog[]): AuditGroup[] {
   const groups: AuditGroup[] = [];
@@ -103,20 +129,19 @@ function groupAuditLogs(logs: AuditLog[]): AuditGroup[] {
 
 // --- Helpers ---
 
-function getActionBadgeClass(action: string) {
+function getActionDotClass(action: string) {
   switch (action.toUpperCase()) {
     case "CREATE":
-      return "bg-emerald-50 text-emerald-700 border-emerald-200/60";
-    case "UPDATE":
-      return "bg-indigo-50 text-indigo-700 border-indigo-200/60";
-    case "DELETE":
-      return "bg-red-50 text-red-700 border-red-200/60";
-    case "ASSIGN":
-      return "bg-purple-50 text-purple-700 border-purple-200/60";
     case "COMPLETE":
-      return "bg-emerald-50 text-emerald-700 border-emerald-200/60";
+      return "bg-emerald-500";
+    case "UPDATE":
+      return "bg-indigo-500";
+    case "DELETE":
+      return "bg-red-500";
+    case "ASSIGN":
+      return "bg-purple-500";
     default:
-      return "bg-zinc-100 text-zinc-700 border-zinc-200/60";
+      return "bg-zinc-400";
   }
 }
 
@@ -131,6 +156,92 @@ function getInitials(name: string) {
   );
 }
 
+function formatJsonValue(value: unknown) {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "string") return value;
+  return JSON.stringify(value);
+}
+
+// --- Shared small components ---
+
+function ActionBadge({ action }: { action: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700">
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${getActionDotClass(action)}`}
+        aria-hidden="true"
+      />
+      {ACTION_LABELS[action.toUpperCase()] ?? action}
+    </span>
+  );
+}
+
+function EntityBadge({ entityType }: { entityType: string }) {
+  return (
+    <span className="inline-flex rounded-md border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-xs font-medium text-zinc-600">
+      {ENTITY_LABELS[entityType] ?? entityType}
+    </span>
+  );
+}
+
+function CopyIconButton({ value, label }: { value: string; label: string }) {
+  const { addToast } = useToast();
+  const [copied, setCopied] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      addToast(`${label} copied to clipboard`, "success");
+      timeoutRef.current = setTimeout(() => setCopied(false), 1500);
+    } catch {
+      addToast(`Couldn't copy ${label.toLowerCase()}`, "error");
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      aria-label={`Copy ${label}`}
+      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+    >
+      {copied ? (
+        <Check className="h-3.5 w-3.5 text-emerald-600" />
+      ) : (
+        <Copy className="h-3.5 w-3.5" />
+      )}
+    </button>
+  );
+}
+
+function FilterChip({
+  label,
+  onRemove,
+}: {
+  label: string;
+  onRemove: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onRemove}
+      className="group inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs font-medium text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+    >
+      {label}
+      <X className="h-3 w-3 text-zinc-400 transition-colors group-hover:text-zinc-600" />
+    </button>
+  );
+}
+
 // --- Main Component ---
 
 export default function AuditLogsPage() {
@@ -141,11 +252,12 @@ export default function AuditLogsPage() {
   const [members, setMembers] = useState<OrganizationMember[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<AuditGroup | null>(null);
   const [headingGone, setHeadingGone] = useState(false);
 
-  const [filters, setFilters] = useState<AuditFilters>({ search: "" });
+  const [filters, setFilters] = useState<AuditFilters>(EMPTY_FILTERS);
 
   const cursorRef = useRef<string | undefined>(undefined);
   const hasMoreRef = useRef(false);
@@ -153,6 +265,7 @@ export default function AuditLogsPage() {
   const initialLoadingRef = useRef(true);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const headingRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const addToastRef = useRef(addToast);
 
   useEffect(() => {
@@ -168,6 +281,23 @@ export default function AuditLogsPage() {
     );
     obs.observe(el);
     return () => obs.disconnect();
+  }, []);
+
+  // "/" focuses search, matching the shortcut convention of Linear/GitHub.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey) return;
+      const target = e.target as HTMLElement;
+      const isTyping =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable;
+      if (isTyping) return;
+      e.preventDefault();
+      searchInputRef.current?.focus();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   useEffect(() => {
@@ -188,6 +318,7 @@ export default function AuditLogsPage() {
       if (isNewSearch) {
         initialLoadingRef.current = true;
         setInitialLoading(true);
+        setLoadError(false);
         cursorRef.current = undefined;
       } else {
         loadingMoreRef.current = true;
@@ -216,6 +347,10 @@ export default function AuditLogsPage() {
         setHasMore(more);
         setLogs((prev) => (isNewSearch ? data : [...prev, ...data]));
       } catch {
+        if (isNewSearch) {
+          setLoadError(true);
+          setLogs([]);
+        }
         addToastRef.current("Failed to load audit logs", "error");
       } finally {
         initialLoadingRef.current = false;
@@ -255,14 +390,60 @@ export default function AuditLogsPage() {
 
   const groupedLogs = useMemo(() => groupAuditLogs(logs), [logs]);
 
-  const hasActiveFilters = Boolean(
-    filters.search ||
-      filters.action ||
-      filters.entityType ||
-      filters.actor ||
-      filters.fromDate ||
-      filters.toDate
+  const actorName = useMemo(
+    () => members.find((m) => m.user_id === filters.actor)?.name,
+    [members, filters.actor]
   );
+
+  const activeChips = useMemo(() => {
+    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+
+    if (filters.search) {
+      chips.push({
+        key: "search",
+        label: `"${filters.search}"`,
+        onRemove: () => setFilters((c) => ({ ...c, search: "" })),
+      });
+    }
+    if (filters.action) {
+      chips.push({
+        key: "action",
+        label: ACTION_LABELS[filters.action],
+        onRemove: () => setFilters((c) => ({ ...c, action: undefined })),
+      });
+    }
+    if (filters.entityType) {
+      chips.push({
+        key: "entityType",
+        label: ENTITY_LABELS[filters.entityType],
+        onRemove: () => setFilters((c) => ({ ...c, entityType: undefined })),
+      });
+    }
+    if (filters.actor) {
+      chips.push({
+        key: "actor",
+        label: actorName ?? "Unknown user",
+        onRemove: () => setFilters((c) => ({ ...c, actor: undefined })),
+      });
+    }
+    if (filters.fromDate || filters.toDate) {
+      const from = filters.fromDate
+        ? format(new Date(filters.fromDate), "MMM d")
+        : "Any";
+      const to = filters.toDate
+        ? format(new Date(filters.toDate), "MMM d")
+        : "Any";
+      chips.push({
+        key: "date",
+        label: `${from} – ${to}`,
+        onRemove: () =>
+          setFilters((c) => ({ ...c, fromDate: undefined, toDate: undefined })),
+      });
+    }
+    return chips;
+  }, [filters, actorName]);
+
+  const hasActiveFilters = activeChips.length > 0;
 
   const auditToolbar = (
     <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -270,71 +451,99 @@ export default function AuditLogsPage() {
         <div className="relative w-full flex-1 max-w-xl">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <Input
+            ref={searchInputRef}
             placeholder="Search logs"
+            aria-label="Search audit logs"
             value={filters.search}
             onChange={(e) =>
               setFilters((current) => ({ ...current, search: e.target.value }))
             }
-            className="h-9 border-zinc-300 bg-white pl-9 text-sm text-zinc-700 placeholder:text-zinc-500 shadow-sm focus-visible:ring-2 focus-visible:ring-indigo-500"
+            className="h-9 border-zinc-300 bg-white pl-9 pr-9 text-sm text-zinc-700 placeholder:text-zinc-500 shadow-sm focus-visible:ring-2 focus-visible:ring-indigo-500"
           />
+          {!filters.search && (
+            <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[11px] font-medium text-zinc-400">
+              /
+            </kbd>
+          )}
         </div>
 
-        <select
+        <Select
           value={filters.action ?? "all"}
-          onChange={(e) =>
+          onValueChange={(value) =>
             setFilters((current) => ({
               ...current,
               action:
-                e.target.value === "all"
+                value === "all"
                   ? undefined
-                  : (e.target.value as AuditFilters["action"]),
+                  : (value as AuditFilters["action"]),
             }))
           }
-          className="h-9 w-full cursor-pointer rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-36"
         >
-          <option value="all">All actions</option>
-          <option value="CREATE">Create</option>
-          <option value="UPDATE">Update</option>
-          <option value="DELETE">Delete</option>
-        </select>
+          <SelectTrigger
+            aria-label="Filter by action"
+            className="h-9 w-full border-zinc-300 bg-white text-sm text-zinc-700 shadow-sm sm:w-36"
+          >
+            <SelectValue placeholder="All actions" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All actions</SelectItem>
+            <SelectItem value="CREATE">Create</SelectItem>
+            <SelectItem value="UPDATE">Update</SelectItem>
+            <SelectItem value="DELETE">Delete</SelectItem>
+          </SelectContent>
+        </Select>
 
-        <select
+        <Select
           value={filters.entityType ?? "all"}
-          onChange={(e) =>
+          onValueChange={(value) =>
             setFilters((current) => ({
               ...current,
               entityType:
-                e.target.value === "all"
+                value === "all"
                   ? undefined
-                  : (e.target.value as AuditFilters["entityType"]),
+                  : (value as AuditFilters["entityType"]),
             }))
           }
-          className="h-9 w-full cursor-pointer rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-40"
         >
-          <option value="all">Any resource</option>
-          <option value="task">Task</option>
-          <option value="project">Project</option>
-          <option value="member">Member</option>
-          <option value="org">Organization</option>
-        </select>
+          <SelectTrigger
+            aria-label="Filter by resource type"
+            className="h-9 w-full border-zinc-300 bg-white text-sm text-zinc-700 shadow-sm sm:w-40"
+          >
+            <SelectValue placeholder="Any resource" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any resource</SelectItem>
+            <SelectItem value="task">Task</SelectItem>
+            <SelectItem value="project">Project</SelectItem>
+            <SelectItem value="member">Member</SelectItem>
+            <SelectItem value="org">Organization</SelectItem>
+          </SelectContent>
+        </Select>
 
-        <select
+        <Select
           value={filters.actor ?? "all"}
-          onChange={(e) =>
+          onValueChange={(value) =>
             setFilters((current) => ({
               ...current,
-              actor: e.target.value === "all" ? undefined : e.target.value,
+              actor: value === "all" ? undefined : value,
             }))
           }
-          className="h-9 w-full cursor-pointer rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-44"
         >
-          <option value="all">Any user</option>
-          {members.map((member) => (
-            <option key={member.user_id} value={member.user_id}>
-              {member.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger
+            aria-label="Filter by user"
+            className="h-9 w-full border-zinc-300 bg-white text-sm text-zinc-700 shadow-sm sm:w-44"
+          >
+            <SelectValue placeholder="Any user" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any user</SelectItem>
+            {members.map((member) => (
+              <SelectItem key={member.user_id} value={member.user_id}>
+                {member.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         <div className="flex items-center gap-2">
           <DatePicker
@@ -345,7 +554,7 @@ export default function AuditLogsPage() {
             placeholder="From date"
             className="h-9 w-[150px] justify-start border-zinc-300 bg-white px-3 text-sm font-normal shadow-sm hover:bg-white"
           />
-          <ArrowRight className="h-4 w-4 shrink-0 text-zinc-400" />
+          <ArrowRight className="h-4 w-4 shrink-0 text-zinc-400" aria-hidden="true" />
           <DatePicker
             value={filters.toDate ?? null}
             onChange={(toDate) =>
@@ -388,19 +597,42 @@ export default function AuditLogsPage() {
               }}
             />
           )}
-          <div className="flex items-center justify-between gap-4 rounded-t-lg border-b border-zinc-300 bg-zinc-200/80 px-4 py-3 overflow-hidden">
+          <div className="flex items-center justify-between gap-4 rounded-t-lg border-b border-zinc-200 bg-zinc-50 px-4 py-3">
             <div className="flex-1">{auditToolbar}</div>
           </div>
 
-          <div className="flex items-center justify-between border-b border-zinc-300 bg-zinc-200/80 px-6 py-2">
-            <p className="text-[12px] text-zinc-600">
-              Showing <span className="font-medium text-zinc-600">{logs.length}</span>{" "}
+          <div className="flex min-h-[41px] items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-4 py-2">
+            {hasActiveFilters ? (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {activeChips.map((chip) => (
+                  <FilterChip
+                    key={chip.key}
+                    label={chip.label}
+                    onRemove={chip.onRemove}
+                  />
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setFilters(EMPTY_FILTERS)}
+                  className="px-1.5 text-xs font-medium text-zinc-400 underline-offset-2 transition-colors hover:text-zinc-700 hover:underline"
+                >
+                  Clear all
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-zinc-400">No filters applied</p>
+            )}
+            <p
+              className="shrink-0 text-xs tabular-nums text-zinc-500"
+              aria-live="polite"
+            >
+              <span className="font-medium text-zinc-700">{logs.length}</span>{" "}
               event{logs.length === 1 ? "" : "s"}
             </p>
           </div>
 
           <div
-            className={`hidden items-center gap-4 border-b border-zinc-200 bg-zinc-200/80 px-6 py-3 text-[13px] font-medium uppercase tracking-wider text-zinc-500 md:grid ${desktopAuditGrid}`}
+            className={`hidden items-center gap-4 border-b border-zinc-200 bg-zinc-50 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-zinc-500 md:grid ${desktopAuditGrid}`}
           >
             <div>Actor</div>
             <div>Action</div>
@@ -410,7 +642,30 @@ export default function AuditLogsPage() {
           </div>
         </div>
 
-        {!initialLoading && groupedLogs.length === 0 ? (
+        {!initialLoading && loadError ? (
+          <div className="flex flex-col items-center justify-center gap-4 rounded-b-xl border border-t-0 border-zinc-200 bg-white p-12 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-red-100 bg-red-50">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-sm font-semibold text-zinc-900">
+                Couldn&apos;t load audit logs
+              </h2>
+              <p className="max-w-xs text-sm text-zinc-400">
+                Something went wrong while fetching events. Check your
+                connection and try again.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => void loadLogs(true)}
+              className="h-9 gap-2 px-4 text-sm font-medium"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Try again
+            </Button>
+          </div>
+        ) : !initialLoading && groupedLogs.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-4 rounded-b-xl border border-t-0 border-dashed border-zinc-200 bg-zinc-50/60 p-12 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full border border-indigo-100 bg-indigo-50">
               <ClipboardList className="h-5 w-5 text-indigo-500" />
@@ -426,7 +681,7 @@ export default function AuditLogsPage() {
             {hasActiveFilters && (
               <Button
                 variant="outline"
-                onClick={() => setFilters({ search: "" })}
+                onClick={() => setFilters(EMPTY_FILTERS)}
                 className="h-9 px-4 text-sm font-medium"
               >
                 Clear filters
@@ -436,6 +691,7 @@ export default function AuditLogsPage() {
         ) : (
           <div className="w-full overflow-hidden rounded-b-xl border border-t-0 border-zinc-200 bg-white shadow-sm">
             <div
+              aria-label="Audit log events"
               className={`divide-y divide-zinc-100 ${
                 initialLoading ? "opacity-40 pointer-events-none" : ""
               }`}
@@ -444,7 +700,7 @@ export default function AuditLogsPage() {
                 ? Array.from({ length: 6 }).map((_, i) => (
                     <div
                       key={i}
-                      className={`flex flex-col gap-3 px-4 py-4 md:grid md:items-center md:gap-4 md:px-6 md:py-3.5 ${desktopAuditGrid}`}
+                      className={`flex flex-col gap-3 px-4 py-4 md:grid md:items-center md:gap-4 md:py-3.5 ${desktopAuditGrid}`}
                     >
                       <div className="flex items-center gap-3">
                         <Skeleton className="h-8 w-8 rounded-full" />
@@ -460,23 +716,40 @@ export default function AuditLogsPage() {
                     <AuditLogGroupRow
                       key={group.id}
                       group={group}
+                      isSelected={selectedGroup?.id === group.id}
                       onClick={() => setSelectedGroup(group)}
                     />
                   ))}
             </div>
 
-            <div ref={sentinelRef} className="h-4 w-full bg-transparent" />
+            <div ref={sentinelRef} className="h-px w-full bg-transparent" />
 
             {loadingMore && (
-              <div className="flex items-center justify-center border-t border-zinc-100 bg-zinc-50/50 py-4 text-xs font-medium text-zinc-500">
-                <span className="animate-pulse">Loading older events...</span>
+              <div className="flex items-center justify-center gap-2 border-t border-zinc-100 bg-zinc-50/50 py-4 text-xs font-medium text-zinc-500">
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-500" />
+                Loading older events…
+              </div>
+            )}
+
+            {!loadingMore && hasMore && (
+              <div className="flex items-center justify-center border-t border-zinc-100 bg-zinc-50/50 py-3">
+                <button
+                  type="button"
+                  onClick={() => void loadLogs(false, cursorRef.current)}
+                  className="text-xs font-medium text-zinc-500 underline-offset-2 hover:text-zinc-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded px-2 py-1"
+                >
+                  Load older events
+                </button>
               </div>
             )}
           </div>
         )}
       </div>
 
-      <AuditLogDetailsSheet group={selectedGroup} onClose={() => setSelectedGroup(null)} />
+      <AuditLogDetailsSheet
+        group={selectedGroup}
+        onClose={() => setSelectedGroup(null)}
+      />
     </div>
   );
 }
@@ -485,13 +758,16 @@ export default function AuditLogsPage() {
 
 function AuditLogGroupRow({
   group,
+  isSelected,
   onClick,
 }: {
   group: AuditGroup;
+  isSelected: boolean;
   onClick: () => void;
 }) {
   const allChanges = group.logs.flatMap((log) => log.changes);
   const changeCount = allChanges.length;
+  const mergedCount = group.logs.length;
 
   const timestamp = new Date(group.created_at);
   const relativeTime = formatDistanceToNowStrict(timestamp, { addSuffix: true });
@@ -499,8 +775,21 @@ function AuditLogGroupRow({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className={`group flex cursor-pointer flex-col gap-3 px-4 py-4 transition-colors hover:bg-zinc-50 md:grid md:items-center md:gap-4 md:px-6 md:py-3.5 ${desktopAuditGrid}`}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      aria-label={`${group.actor_name} ${ACTION_LABELS[group.action] ?? group.action} on ${
+        ENTITY_LABELS[group.entity_type] ?? group.entity_type
+      }, ${relativeTime}`}
+      className={`group flex cursor-pointer flex-col gap-3 px-4 py-4 outline-none transition-colors hover:bg-zinc-50 focus-visible:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 md:grid md:items-center md:gap-4 md:py-3.5 ${desktopAuditGrid} ${
+        isSelected ? "bg-indigo-50/50" : ""
+      }`}
     >
       <div className="flex min-w-0 items-center gap-3">
         <Avatar className="h-8 w-8 shrink-0 border border-zinc-200">
@@ -509,8 +798,16 @@ function AuditLogGroupRow({
           </AvatarFallback>
         </Avatar>
         <div className="flex min-w-0 flex-col">
-          <span className="truncate text-[15px] font-medium text-zinc-900">
-            {group.actor_name}
+          <span className="flex items-center gap-1.5 truncate text-sm font-medium text-zinc-900">
+            <span className="truncate">{group.actor_name}</span>
+            {mergedCount > 1 && (
+              <span
+                title={`${mergedCount} updates merged`}
+                className="shrink-0 rounded-full bg-zinc-100 px-1.5 py-px text-[11px] font-medium leading-normal text-zinc-500"
+              >
+                ×{mergedCount}
+              </span>
+            )}
           </span>
           {group.actor_id && (
             <span className="hidden truncate font-mono text-xs text-zinc-400 md:block">
@@ -521,19 +818,11 @@ function AuditLogGroupRow({
       </div>
 
       <div className="hidden md:block">
-        <span
-          className={`inline-flex rounded border px-2 py-0.5 text-xs font-medium ${getActionBadgeClass(
-            group.action
-          )}`}
-        >
-          {group.action}
-        </span>
+        <ActionBadge action={group.action} />
       </div>
 
       <div className="hidden min-w-0 md:flex md:items-center">
-        <span className="truncate rounded border border-zinc-200 px-2 py-0.5 text-xs font-medium capitalize text-zinc-600">
-          {group.entity_type}
-        </span>
+        <EntityBadge entityType={group.entity_type} />
       </div>
 
       <div className="hidden text-sm text-zinc-500 md:flex md:items-center">
@@ -549,7 +838,7 @@ function AuditLogGroupRow({
 
       <div className="hidden items-center justify-end gap-2 md:flex">
         <div
-          className="flex items-center gap-1.5 whitespace-nowrap text-sm text-zinc-500"
+          className="flex items-center gap-1.5 whitespace-nowrap text-sm tabular-nums text-zinc-500"
           title={exactTime}
         >
           <Clock className="h-3.5 w-3.5 opacity-70" />
@@ -559,18 +848,14 @@ function AuditLogGroupRow({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 md:hidden">
-        <span
-          className={`rounded border px-2 py-0.5 text-xs font-medium ${getActionBadgeClass(
-            group.action
-          )}`}
-        >
-          {group.action}
+        <ActionBadge action={group.action} />
+        <EntityBadge entityType={group.entity_type} />
+        <span>
+          {changeCount > 0
+            ? `${changeCount} ${changeCount === 1 ? "change" : "changes"}`
+            : "No details"}
         </span>
-        <span className="rounded border border-zinc-200 px-2 py-0.5 text-xs font-medium capitalize text-zinc-600">
-          {group.entity_type}
-        </span>
-        <span>{changeCount > 0 ? `${changeCount} ${changeCount === 1 ? "change" : "changes"}` : "No details"}</span>
-        <span className="ml-auto flex items-center gap-1">
+        <span className="ml-auto flex items-center gap-1 tabular-nums">
           <Clock className="h-3 w-3" />
           {relativeTime}
         </span>
@@ -596,17 +881,11 @@ function AuditLogDetailsSheet({
   return (
     <Sheet open={!!group} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="w-full overflow-y-auto border-l border-zinc-200 bg-white p-0 sm:max-w-md">
-        <div className="border-b border-zinc-200 bg-zinc-50/80 p-6">
+        <div className="border-b border-zinc-200 bg-zinc-50 p-6">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2 text-lg font-semibold text-zinc-900">
               Event details
-              <span
-                className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${getActionBadgeClass(
-                  group.action
-                )}`}
-              >
-                {group.action}
-              </span>
+              <ActionBadge action={group.action} />
             </SheetTitle>
             <SheetDescription className="text-zinc-500">{exactTime}</SheetDescription>
           </SheetHeader>
@@ -614,7 +893,7 @@ function AuditLogDetailsSheet({
 
         <div className="space-y-8 p-6">
           <section className="space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
               Actor
             </h4>
             <div className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-white p-3">
@@ -623,67 +902,83 @@ function AuditLogDetailsSheet({
                   {getInitials(group.actor_name)}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex min-w-0 flex-col">
+              <div className="flex min-w-0 flex-1 flex-col">
                 <span className="text-sm font-medium text-zinc-900">{group.actor_name}</span>
                 <span className="truncate font-mono text-xs text-zinc-500">
                   {group.actor_id || "System"}
                 </span>
               </div>
+              {group.actor_id && (
+                <CopyIconButton value={group.actor_id} label="Actor ID" />
+              )}
             </div>
           </section>
 
           <section className="space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
               Resource
             </h4>
-            <div className="grid grid-cols-3 gap-y-3 text-sm">
+            <div className="grid grid-cols-3 items-center gap-y-3 text-sm">
               <div className="text-zinc-500">Type</div>
-              <div className="col-span-2 font-medium capitalize text-zinc-900">
-                {group.entity_type}
+              <div className="col-span-2">
+                <EntityBadge entityType={group.entity_type} />
               </div>
               <div className="text-zinc-500">ID</div>
-              <div className="col-span-2 w-fit rounded bg-zinc-100 p-1 font-mono text-xs text-zinc-700">
-                {group.entity_id}
+              <div className="col-span-2 flex items-center gap-1.5">
+                <span className="w-fit truncate rounded bg-zinc-100 px-2 py-1 font-mono text-xs text-zinc-700">
+                  {group.entity_id}
+                </span>
+                <CopyIconButton value={group.entity_id} label="Resource ID" />
               </div>
             </div>
           </section>
 
           <section className="space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
               Changes ({allChanges.length})
             </h4>
 
             {allChanges.length > 0 ? (
-              <div className="overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
-                <div className="max-h-[300px] overflow-y-auto p-4">
+              <div className="overflow-hidden rounded-lg border border-zinc-200">
+                <div className="max-h-[340px] divide-y divide-zinc-100 overflow-y-auto">
                   {allChanges.map((change, index) => (
-                    <div key={index} className="mb-4 last:mb-0">
-                      <div className="mb-2 border-b border-zinc-200 pb-1 text-xs font-semibold capitalize text-zinc-700">
+                    <div key={index} className="p-3">
+                      <div className="mb-2 text-xs font-semibold capitalize text-zinc-700">
                         {change.field.replaceAll("_", " ")}
                       </div>
 
-                      <div className="overflow-x-auto rounded-md bg-zinc-950 p-3 font-mono text-xs text-zinc-300 shadow-inner">
-                        {group.action === "CREATE" && (
-                          <div className="text-emerald-400">
-                            + {JSON.stringify(change.after, null, 2)}
-                          </div>
-                        )}
-                        {group.action === "DELETE" && (
-                          <div className="text-rose-400">
-                            - {JSON.stringify(change.before, null, 2)}
-                          </div>
-                        )}
-                        {group.action === "UPDATE" && (
-                          <div className="flex flex-col gap-2">
-                            <div className="text-rose-400 opacity-80">
-                              - {JSON.stringify(change.before, null, 2)}
+                      {group.action === "UPDATE" ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="rounded-md border border-red-100 bg-red-50/60 p-2">
+                            <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-red-500">
+                              Before
                             </div>
-                            <div className="text-emerald-400">
-                              + {JSON.stringify(change.after, null, 2)}
+                            <div className="break-all font-mono text-xs text-red-700">
+                              {formatJsonValue(change.before)}
                             </div>
                           </div>
-                        )}
-                      </div>
+                          <div className="rounded-md border border-emerald-100 bg-emerald-50/60 p-2">
+                            <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-emerald-600">
+                              After
+                            </div>
+                            <div className="break-all font-mono text-xs text-emerald-700">
+                              {formatJsonValue(change.after)}
+                            </div>
+                          </div>
+                        </div>
+                      ) : group.action === "DELETE" ? (
+                        <div className="rounded-md border border-red-100 bg-red-50/60 p-2">
+                          <div className="break-all font-mono text-xs text-red-700">
+                            {formatJsonValue(change.before)}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-md border border-emerald-100 bg-emerald-50/60 p-2">
+                          <div className="break-all font-mono text-xs text-emerald-700">
+                            {formatJsonValue(change.after)}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -696,12 +991,15 @@ function AuditLogDetailsSheet({
           </section>
 
           <section className="space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
               Metadata
             </h4>
-            <div className="grid grid-cols-3 gap-y-3 text-sm text-zinc-600">
+            <div className="grid grid-cols-3 items-center gap-y-3 text-sm text-zinc-600">
               <div className="text-zinc-500">Event ID</div>
-              <div className="col-span-2 font-mono text-xs">{group.id}</div>
+              <div className="col-span-2 flex items-center gap-1.5">
+                <span className="truncate font-mono text-xs">{group.id}</span>
+                <CopyIconButton value={group.id} label="Event ID" />
+              </div>
               <div className="text-zinc-500">Timestamp</div>
               <div className="col-span-2">{exactTime}</div>
             </div>
