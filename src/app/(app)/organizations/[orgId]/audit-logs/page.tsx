@@ -70,7 +70,7 @@ const PAGE_SIZE = 25;
 const EMPTY_FILTERS: AuditFilters = { search: "" };
 
 const desktopAuditGrid =
-  "md:grid-cols-[minmax(0,1.6fr)_112px_150px_1fr_150px]";
+  "md:grid-cols-[150px_minmax(0,1.6fr)_112px_150px_40px]";
 
 const ACTION_LABELS: Record<string, string> = {
   CREATE: "Create",
@@ -678,11 +678,11 @@ export default function AuditLogsPage() {
               }}
             />
           )}
-          <div className="flex items-center justify-between gap-4 rounded-t-lg border-b border-zinc-200 bg-zinc-50 px-4 py-3">
+          <div className="flex items-center justify-between gap-4 rounded-t-lg border-b border-zinc-300 bg-zinc-200/80 px-4 py-3">
             <div className="flex-1">{auditToolbar}</div>
           </div>
 
-          <div className="flex min-h-[41px] items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-4 py-2">
+          <div className="flex min-h-[41px] items-center justify-between gap-3 border-b border-zinc-300 bg-zinc-200/80 px-4 py-2">
             {hasActiveFilters ? (
               <div className="flex flex-wrap items-center gap-1.5">
                 {activeChips.map((chip) => (
@@ -714,13 +714,12 @@ export default function AuditLogsPage() {
           </div>
 
           <div
-            className={`hidden items-center gap-4 border-b border-zinc-200 bg-zinc-50 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-zinc-500 md:grid ${desktopAuditGrid}`}
+            className={`hidden items-center gap-4 border-b border-zinc-300 bg-zinc-200/80 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-zinc-500 md:grid ${desktopAuditGrid}`}
           >
+            <div>Time</div>
             <div>Actor</div>
             <div>Action</div>
-            <div>Resource</div>
-            <div>Changes</div>
-            <div className="text-right">Time</div>
+            <div>Resource</div>         
           </div>
         </div>
 
@@ -798,7 +797,7 @@ export default function AuditLogsPage() {
                     <AuditLogGroupRow
                       key={group.id}
                       group={group}
-                      actorEmail={actorEmailMap.get(group.actor_id ?? "") ?? null}
+
                     />
                   ))}
             </div>
@@ -834,10 +833,10 @@ export default function AuditLogsPage() {
 
 function AuditLogGroupRow({
   group,
-  actorEmail,
+
 }: {
   group: AuditGroup;
-  actorEmail: string | null;
+
 }) {
   const allChanges = group.logs.flatMap((log) => log.changes);
   const changeCount = allChanges.length;
@@ -852,73 +851,61 @@ function AuditLogGroupRow({
         <div
           role="button"
           tabIndex={0}
-          aria-label={`${group.actor_name} ${ACTION_LABELS[group.action] ?? group.action} on ${
+          aria-label={`${dateStr}, ${group.actor_name} ${ACTION_LABELS[group.action] ?? group.action} on ${
             ENTITY_LABELS[group.entity_type] ?? group.entity_type
-          }, ${dateStr}`}
+          }`}
           className={`group flex cursor-pointer flex-col gap-3 px-4 py-4 outline-none transition-colors hover:bg-zinc-50 focus-visible:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 md:grid md:items-center md:gap-4 md:py-3.5 ${desktopAuditGrid}`}
         >
-          <div className="flex min-w-0 items-center gap-3">
-            <Avatar className="h-8 w-8 shrink-0 border border-zinc-200">
-              <AvatarFallback className="bg-zinc-100 text-xs font-medium text-zinc-600">
-                {getInitials(group.actor_name)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex min-w-0 flex-col">
-              <span className="flex items-center gap-1.5 truncate text-sm font-medium text-zinc-900">
-                <span className="truncate">{group.actor_name}</span>
-                {mergedCount > 1 && (
-                  <span
-                    title={`${mergedCount} updates merged`}
-                    className="shrink-0 rounded-full bg-zinc-100 px-1.5 py-px text-[11px] font-medium leading-normal text-zinc-500"
-                  >
-                    ×{mergedCount}
-                  </span>
-                )}
-              </span>
-              {actorEmail && (
-                <span className="hidden truncate text-xs text-zinc-400 md:block">
-                  {actorEmail}
-                </span>
-              )}
-            </div>
-          </div>
+  {/* Time */}
+  <div className="hidden text-sm tabular-nums text-zinc-500 md:flex md:items-center">
+    {dateStr}
+  </div>
 
-          <div className="hidden md:block">
-            <ActionBadge action={group.action} />
-          </div>
+  {/* Actor */}
+  <div className="flex min-w-0 items-center gap-3">
 
-          <div className="hidden min-w-0 md:flex md:items-center">
-            <EntityBadge entityType={group.entity_type} />
-          </div>
+    <div className="flex min-w-0 flex-col">
+      <span className="flex items-center gap-1.5 truncate text-sm font-medium text-zinc-900">
+        <span className="truncate">{group.actor_name}</span>
+        {mergedCount > 1 && (
+          <span
+            title={`${mergedCount} updates merged`}
+            className="shrink-0 rounded-full bg-zinc-100 px-1.5 py-px text-[11px] font-medium leading-normal text-zinc-500"
+          >
+            ×{mergedCount}
+          </span>
+        )}
+      </span>
 
-          <div className="hidden text-sm text-zinc-500 md:flex md:items-center">
-            {changeCount > 0 ? (
-              <span className="flex items-center gap-1.5">
-                <MoreHorizontal className="h-4 w-4 text-zinc-400 transition-colors group-hover:text-zinc-600" />
-                {changeCount} {changeCount === 1 ? "change" : "changes"}
-              </span>
-            ) : (
-              <span className="text-xs italic text-zinc-400">No details</span>
-            )}
-          </div>
+    </div>
+  </div>
 
-          <div className="hidden items-center justify-end gap-2 md:flex">
-            <span className="whitespace-nowrap text-sm tabular-nums text-zinc-500">
-              {dateStr}
-            </span>
-            <ChevronRight className="h-4 w-4 text-zinc-300 transition-colors group-hover:text-zinc-500" />
-          </div>
+  {/* Action */}
+  <div className="hidden md:block">
+    <ActionBadge action={group.action} />
+  </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 md:hidden">
-            <ActionBadge action={group.action} />
-            <EntityBadge entityType={group.entity_type} />
-            <span>
-              {changeCount > 0
-                ? `${changeCount} ${changeCount === 1 ? "change" : "changes"}`
-                : "No details"}
-            </span>
-            <span className="ml-auto tabular-nums">{dateStr}</span>
-          </div>
+  {/* Resource */}
+  <div className="hidden min-w-0 md:flex md:items-center">
+    <EntityBadge entityType={group.entity_type} />
+  </div>
+
+  {/* Expand trigger only — no changeCount text/icon inline anymore */}
+  <div className="hidden items-center justify-end md:flex">
+    <ChevronRight className="h-4 w-4 text-zinc-300 transition-colors group-hover:text-zinc-500" />
+  </div>
+
+  {/* Mobile stacked layout */}
+  <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 md:hidden">
+    <span className="tabular-nums">{dateStr}</span>
+    <ActionBadge action={group.action} />
+    <EntityBadge entityType={group.entity_type} />
+    <span className="ml-auto">
+      {changeCount > 0
+        ? `${changeCount} ${changeCount === 1 ? "change" : "changes"}`
+        : "No details"}
+    </span>
+  </div>
         </div>
       </PopoverTrigger>
 
