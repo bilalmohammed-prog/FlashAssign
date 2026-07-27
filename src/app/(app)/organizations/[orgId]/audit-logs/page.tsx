@@ -441,7 +441,9 @@ export default function AuditLogsPage() {
         hasMoreRef.current = more;
         setHasMore(more);
         setLogs((prev) => (isNewSearch ? data : [...prev, ...data]));
-        setTotalCount(total);
+        // The total represents the whole filtered result set, not just this page.
+        // Keep it from the initial request while older pages are appended.
+        if (isNewSearch) setTotalCount(total);
       } catch {
         if (isNewSearch) {
           setLoadError(true);
