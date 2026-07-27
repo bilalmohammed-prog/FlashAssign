@@ -70,7 +70,7 @@ const PAGE_SIZE = 25;
 const EMPTY_FILTERS: AuditFilters = { search: "" };
 
 const desktopAuditGrid =
-  "md:grid-cols-[150px_minmax(0,1.6fr)_112px_150px_40px]";
+  "md:grid-cols-[1fr_1fr_1fr_0.7fr] md:gap-6";
 
 const ACTION_LABELS: Record<string, string> = {
   CREATE: "Create",
@@ -868,13 +868,13 @@ function AuditLogGroupRow({ group }: { group: AuditGroup }) {
           className={`group flex cursor-pointer flex-col gap-3 px-4 py-4 outline-none transition-colors hover:bg-zinc-50 focus-visible:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 md:grid md:items-center md:gap-4 md:py-3.5 ${desktopAuditGrid}`}
         >
           {/* Time */}
-          <div className="hidden text-[13px] tabular-nums text-zinc-500 md:flex md:items-center">
+          <div className="hidden text-[14px] font-medium tabular-nums text-zinc-700 md:flex md:items-center">
             {dateStr}
           </div>
 
           {/* Actor */}
           <div className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate text-sm font-medium text-zinc-900 tracking-tight">
+            <span className="truncate text-sm font-medium text-zinc-700 tracking-tight">
               {group.actor_name}
             </span>
             {mergedCount > 1 && (
@@ -894,7 +894,7 @@ function AuditLogGroupRow({ group }: { group: AuditGroup }) {
 
           {/* Resource — plain text */}
           <div className="hidden min-w-0 md:flex md:items-center">
-            <span className="truncate text-sm text-zinc-700">
+            <span className="truncate text-sm text-zinc-700 font-medium">
               {ENTITY_LABELS[group.entity_type] ?? group.entity_type}
             </span>
           </div>
