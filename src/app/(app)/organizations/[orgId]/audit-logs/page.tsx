@@ -321,6 +321,7 @@ export default function AuditLogsPage() {
   const { addToast } = useToast();
 
   const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [totalCount, setTotalCount] = useState(0);  // Add this
   const [members, setMembers] = useState<OrganizationMember[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -419,11 +420,13 @@ export default function AuditLogsPage() {
         const nextCursor =
           data.length > 0 ? data[data.length - 1].created_at : undefined;
         const more = data.length === PAGE_SIZE;
-
+        const total = data?.[0]?.total_count ?? 0;
+        
         cursorRef.current = nextCursor;
         hasMoreRef.current = more;
         setHasMore(more);
         setLogs((prev) => (isNewSearch ? data : [...prev, ...data]));
+        setTotalCount(total);
       } catch {
         if (isNewSearch) {
           setLoadError(true);
@@ -704,8 +707,9 @@ export default function AuditLogsPage() {
               className="shrink-0 text-xs tabular-nums text-zinc-500"
               aria-live="polite"
             >
-              <span className="font-medium text-zinc-700">{logs.length}</span>{" "}
-              event{logs.length === 1 ? "" : "s"}
+              <span className="font-medium text-zinc-700">{logs.length}</span> of{" "}
+              <span className="font-medium text-zinc-700">{totalCount}</span> event
+              {totalCount === 1 ? "" : "s"}
             </p>
           </div>
 
