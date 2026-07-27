@@ -101,7 +101,22 @@ const PRIORITY_COLORS: Record<string, string> = {
   high: "bg-orange-50 text-orange-700 border-orange-200/60",
   urgent: "bg-red-50 text-red-700 border-red-200/60",
 };
+// --- Action color map (text-only, no badge) ---
 
+const ACTION_TEXT_COLORS: Record<string, string> = {
+  CREATE: "text-emerald-600",
+  UPDATE: "text-blue-600",
+  DELETE: "text-red-600",
+};
+
+function ActionText({ action }: { action: string }) {
+  const upper = action.toUpperCase();
+  return (
+    <span className={`text-sm font-medium ${ACTION_TEXT_COLORS[upper] ?? "text-zinc-700"}`}>
+      {ACTION_LABELS[upper] ?? action}
+    </span>
+  );
+}
 // --- Dropdown ---
 
 function ChangesDropdown({
@@ -714,13 +729,13 @@ export default function AuditLogsPage() {
           </div>
 
           <div
-            className={`hidden items-center gap-4 border-b border-zinc-300 bg-zinc-200/80 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-zinc-500 md:grid ${desktopAuditGrid}`}
-          >
-            <div>Time</div>
-            <div>Actor</div>
-            <div>Action</div>
-            <div>Resource</div>         
-          </div>
+  className={`hidden items-center gap-4 border-b border-zinc-300 bg-zinc-200/80 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500 md:grid ${desktopAuditGrid}`}
+>
+  <div>Time</div>
+  <div>Actor</div>
+  <div>Action</div>
+  <div>Resource</div>
+</div>
         </div>
 
         {!initialLoading && loadError ? (
@@ -831,13 +846,7 @@ export default function AuditLogsPage() {
 
 // --- Row Component ---
 
-function AuditLogGroupRow({
-  group,
-
-}: {
-  group: AuditGroup;
-
-}) {
+function AuditLogGroupRow({ group }: { group: AuditGroup }) {
   const allChanges = group.logs.flatMap((log) => log.changes);
   const changeCount = allChanges.length;
   const mergedCount = group.logs.length;
@@ -856,56 +865,53 @@ function AuditLogGroupRow({
           }`}
           className={`group flex cursor-pointer flex-col gap-3 px-4 py-4 outline-none transition-colors hover:bg-zinc-50 focus-visible:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 md:grid md:items-center md:gap-4 md:py-3.5 ${desktopAuditGrid}`}
         >
-  {/* Time */}
-  <div className="hidden text-sm tabular-nums text-zinc-500 md:flex md:items-center">
-    {dateStr}
-  </div>
+          {/* Time */}
+          <div className="hidden text-[13px] tabular-nums text-zinc-500 md:flex md:items-center">
+            {dateStr}
+          </div>
 
-  {/* Actor */}
-  <div className="flex min-w-0 items-center gap-3">
+          {/* Actor */}
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate text-sm font-medium text-zinc-900 tracking-tight">
+              {group.actor_name}
+            </span>
+            {mergedCount > 1 && (
+              <span
+                title={`${mergedCount} updates merged`}
+                className="shrink-0 rounded-full bg-zinc-100 px-1.5 py-px text-[11px] font-medium leading-normal text-zinc-500"
+              >
+                ×{mergedCount}
+              </span>
+            )}
+          </div>
 
-    <div className="flex min-w-0 flex-col">
-      <span className="flex items-center gap-1.5 truncate text-sm font-medium text-zinc-900">
-        <span className="truncate">{group.actor_name}</span>
-        {mergedCount > 1 && (
-          <span
-            title={`${mergedCount} updates merged`}
-            className="shrink-0 rounded-full bg-zinc-100 px-1.5 py-px text-[11px] font-medium leading-normal text-zinc-500"
-          >
-            ×{mergedCount}
-          </span>
-        )}
-      </span>
+          {/* Action — plain colored text */}
+          <div className="hidden md:block">
+            <ActionText action={group.action} />
+          </div>
 
-    </div>
-  </div>
+          {/* Resource — plain text */}
+          <div className="hidden min-w-0 md:flex md:items-center">
+            <span className="truncate text-sm text-zinc-700">
+              {ENTITY_LABELS[group.entity_type] ?? group.entity_type}
+            </span>
+          </div>
 
-  {/* Action */}
-  <div className="hidden md:block">
-    <ActionBadge action={group.action} />
-  </div>
 
-  {/* Resource */}
-  <div className="hidden min-w-0 md:flex md:items-center">
-    <EntityBadge entityType={group.entity_type} />
-  </div>
 
-  {/* Expand trigger only — no changeCount text/icon inline anymore */}
-  <div className="hidden items-center justify-end md:flex">
-    <ChevronRight className="h-4 w-4 text-zinc-300 transition-colors group-hover:text-zinc-500" />
-  </div>
-
-  {/* Mobile stacked layout */}
-  <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 md:hidden">
-    <span className="tabular-nums">{dateStr}</span>
-    <ActionBadge action={group.action} />
-    <EntityBadge entityType={group.entity_type} />
-    <span className="ml-auto">
-      {changeCount > 0
-        ? `${changeCount} ${changeCount === 1 ? "change" : "changes"}`
-        : "No details"}
-    </span>
-  </div>
+          {/* Mobile stacked layout */}
+          <div className="flex flex-wrap items-center gap-2 text-[13px] text-zinc-500 md:hidden">
+            <span className="tabular-nums">{dateStr}</span>
+            <ActionText action={group.action} />
+            <span className="text-zinc-700">
+              {ENTITY_LABELS[group.entity_type] ?? group.entity_type}
+            </span>
+            <span className="ml-auto">
+              {changeCount > 0
+                ? `${changeCount} ${changeCount === 1 ? "change" : "changes"}`
+                : "No details"}
+            </span>
+          </div>
         </div>
       </PopoverTrigger>
 
