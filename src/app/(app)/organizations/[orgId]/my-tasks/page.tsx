@@ -1,277 +1,373 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { format, formatDistanceToNowStrict } from "date-fns";
 import {
-  Search,
-  MoreHorizontal,
-  Clock,
   ArrowRight,
-  ChevronRight,
-  ClipboardList,
+  Calendar,
+  Plus,
+  Search,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  Trash2,
   X,
-  Copy,
-  Check,
-  AlertTriangle,
-  RefreshCw,
+  ChevronRight,
 } from "lucide-react";
-
-import { useToast } from "@/components/providers/toast";
-import { listAuditLogs } from "@/actions/audit/list";
-import { listOrgMembers } from "@/actions/organization/listOrgMembers";
-import { AuditLog } from "@/lib/types/audit-log";
-
+import type { Enums, TablesUpdate } from "@/lib/types/database";
+import { updateTask } from "@/actions/task/update";
+import { createTask } from "@/actions/task/create";
+import { deleteTask as deleteTaskAction } from "@/actions/task/delete";
+import { usePageHeader } from "@/components/layout/PageHeaderContext";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Skeleton } from "@/components/ui/skeleton";
+import { AppModal } from "@/components/ui/app-modal";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
+import { TaskDetailsPanels } from "@/components/tasks/TaskDetailsPanels";
+import { useToast } from "@/components/providers/toast";
+import { getWorkspaceCapabilities, canEditTask } from "@/lib/auth/ui-capabilities";
+import { isAppRole, toAppRole } from "@/lib/auth/permissions";
+import { supabase } from "@/lib/supabase/client";
+import { useOrgRole } from "@/hooks/useOrgRole";
 import { DatePicker } from "@/components/ui/date-picker";
 
-// --- Types ---
-
-type AuditGroup = {
+export type EmployeeTaskRpc = {
   id: string;
-  actor_name: string;
-  action: string;
-  entity_type: string;
-  entity_id: string;
+  organization_id: string;
+  project_id: string | null;
+  project_name: string | null;
+  title: string;
+  description: string | null;
+  status: string;
+  start_date: string | null;
+  due_date: string | null;
+  created_by: string;
   created_at: string;
-  logs: AuditLog[];
-  actor_id: string | null;
+  total_count: number;
 };
 
-type AuditFilters = {
-  search: string;
-  action?: "CREATE" | "UPDATE" | "DELETE";
-  entityType?: "task" | "project" | "member" | "org";
-  actor?: string;
-  fromDate?: string;
-  toDate?: string;
+type TaskPatch = {
+  title?: string;
+  description?: string | null;
+  status?: TaskStatus;
+  start_date?: string | null;
+  due_date?: string | null;
+  project_id?: string | null;
+  project_name?: string | null;
 };
 
-type OrganizationMember = {
-  user_id: string;
-  name: string;
-  email: string | null;
+type TaskStatus = Enums<"task_status">;
+type ProjectResource = { id: string; name: string };
+
+const PAGE_SIZE = 10;
+const desktopTasksTableGrid =
+  "md:grid-cols-[minmax(0,1.8fr)_220px_152px_140px_140px_48px]";
+
+type TaskRowProps = {
+  task: EmployeeTaskRpc;
+  canManage: boolean;
+  canEditStatus: boolean;
+  deleteMode: boolean;
+  selectedForDelete: boolean;
+  projects: ProjectResource[];
+  savingId: string | null;
+  onCommitUpdate: (taskId: string, updates: TablesUpdate<"tasks">) => void;
+  onProjectChange: (taskId: string, projectId: string | null) => void;
+  onToggleDeleteSelection: (taskId: string) => void;
+  orgId: string;
+  currentUserId: string | null;
+  isExpanded: boolean;
+  onToggleExpand: (taskId: string) => void;
 };
 
-const GROUP_WINDOW_MS = 60000;
-const PAGE_SIZE = 25;
-const EMPTY_FILTERS: AuditFilters = { search: "" };
+function isTaskOverdue(task: { due_date?: string | null; status?: string }): boolean {
+  if (!task.due_date) return false;
+  if (task.status === "completed" || task.status === "done") return false;
 
-const desktopAuditGrid =
-  "md:grid-cols-[minmax(0,1.8fr)_120px_150px_140px_160px]";
+  const dueDate = new Date(task.due_date);
+  const now = new Date();
 
-const ACTION_LABELS: Record<string, string> = {
-  CREATE: "Create",
-  UPDATE: "Update",
-  DELETE: "Delete",
-};
+  dueDate.setHours(0, 0, 0, 0);
+  now.setHours(0, 0, 0, 0);
 
-const ENTITY_LABELS: Record<string, string> = {
-  task: "Task",
-  project: "Project",
-  member: "Member",
-  org: "Organization",
-};
-
-function groupAuditLogs(logs: AuditLog[]): AuditGroup[] {
-  const groups: AuditGroup[] = [];
-
-  for (const log of logs) {
-    const previous = groups[groups.length - 1];
-
-    const shouldGroup =
-      previous &&
-      log.action === "UPDATE" &&
-      previous.action === "UPDATE" &&
-      previous.actor_id === log.actor_id &&
-      previous.entity_type === log.entity_type &&
-      previous.entity_id === log.entity_id &&
-      Math.abs(
-        new Date(previous.created_at).getTime() -
-          new Date(log.created_at).getTime()
-      ) <= GROUP_WINDOW_MS;
-
-    if (shouldGroup) {
-      previous.logs.push(log);
-    } else {
-      groups.push({
-        id: log.id,
-        actor_name: log.actor_name,
-        action: log.action,
-        entity_type: log.entity_type,
-        entity_id: log.entity_id,
-        created_at: log.created_at,
-        logs: [log],
-        actor_id: log.actor_id,
-      });
-    }
-  }
-
-  return groups;
+  return dueDate < now;
 }
 
-// --- Helpers ---
+const EmployeeTaskRow = memo(function EmployeeTaskRow({
+  task,
+  canManage,
+  canEditStatus,
+  deleteMode,
+  selectedForDelete,
+  projects,
+  savingId,
+  onCommitUpdate,
+  onProjectChange,
+  onToggleDeleteSelection,
+  orgId,
+  currentUserId,
+  isExpanded,
+  onToggleExpand,
+}: TaskRowProps) {
+  const [titleValue, setTitleValue] = useState(task.title);
+  const [descriptionValue, setDescriptionValue] = useState(task.description ?? "");
 
-function getActionDotClass(action: string) {
-  switch (action.toUpperCase()) {
-    case "CREATE":
-    case "COMPLETE":
-      return "bg-emerald-500";
-    case "UPDATE":
-      return "bg-indigo-500";
-    case "DELETE":
-      return "bg-red-500";
-    case "ASSIGN":
-      return "bg-purple-500";
-    default:
-      return "bg-zinc-400";
-  }
-}
-
-function getInitials(name: string) {
-  return (
-    name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .substring(0, 2)
-      .toUpperCase() || "?"
-  );
-}
-
-function formatJsonValue(value: unknown) {
-  if (value === null || value === undefined) return "—";
-  if (typeof value === "string") return value;
-  return JSON.stringify(value);
-}
-
-// --- Shared small components ---
-
-function ActionBadge({ action }: { action: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700">
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${getActionDotClass(action)}`}
-        aria-hidden="true"
-      />
-      {ACTION_LABELS[action.toUpperCase()] ?? action}
-    </span>
-  );
-}
-
-function EntityBadge({ entityType }: { entityType: string }) {
-  return (
-    <span className="inline-flex rounded-md border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-xs font-medium text-zinc-600">
-      {ENTITY_LABELS[entityType] ?? entityType}
-    </span>
-  );
-}
-
-function CopyIconButton({ value, label }: { value: string; label: string }) {
-  const { addToast } = useToast();
-  const [copied, setCopied] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
-
-  const handleCopy = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      addToast(`${label} copied to clipboard`, "success");
-      timeoutRef.current = setTimeout(() => setCopied(false), 1500);
-    } catch {
-      addToast(`Couldn't copy ${label.toLowerCase()}`, "error");
-    }
-  };
+  const fieldsDisabled = !canManage || deleteMode;
+  const statusDisabled = deleteMode || (!canManage && !canEditStatus);
+  const rowClassName = selectedForDelete
+    ? "border-red-200 bg-red-50/70 hover:bg-red-50/80"
+    : "border-zinc-100 bg-white hover:bg-zinc-100/60";
+  const overdue = isTaskOverdue(task);
 
   return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      aria-label={`Copy ${label}`}
-      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+    <div
+      className={`task-row-wrapper group relative flex flex-col transition-colors ${rowClassName}`}
     >
-      {copied ? (
-        <Check className="h-3.5 w-3.5 text-emerald-600" />
-      ) : (
-        <Copy className="h-3.5 w-3.5" />
+      <div
+        className={`task-grid-row flex flex-col items-start gap-3 px-4 py-4 md:grid md:items-center md:gap-4 md:px-6 md:py-3.5 ${desktopTasksTableGrid}`}
+      >
+        <div className="flex w-full min-w-0 flex-col">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => onToggleExpand(task.id)}
+              className="shrink-0 text-zinc-400 transition-transform duration-150 hover:text-zinc-700"
+              style={{ transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)" }}
+              aria-label={isExpanded ? "Collapse" : "Expand"}
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+            <input
+              value={titleValue}
+              onChange={(e) => setTitleValue(e.target.value)}
+              onBlur={(e) => {
+                if (e.target.value !== task.title) {
+                  onCommitUpdate(task.id, { title: e.target.value });
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
+              disabled={fieldsDisabled}
+              className={`w-full truncate rounded px-1.5 py-0.5 text-[15px] font-medium outline-none transition-colors disabled:cursor-default
+                ${
+                  !fieldsDisabled
+                    ? "cursor-text border border-transparent hover:border-zinc-300 hover:bg-zinc-50 focus:border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500"
+                    : "border-transparent bg-transparent"
+                }
+                ${
+                  selectedForDelete
+                    ? "line-through text-red-950/80 opacity-90"
+                    : task.status === "done"
+                    ? "text-zinc-900"
+                    : "text-zinc-900"
+                }
+              `}
+            />
+          </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-zinc-500 md:hidden">
+          <span
+            className={`rounded px-2 py-0.5 text-xs font-medium ${getTaskStatusBadgeClass(
+              task.status
+            )} ${selectedForDelete ? "opacity-90" : ""}`}
+          >
+            {getTaskStatusLabel(task.status)}
+          </span>
+          <span className={selectedForDelete ? "opacity-90" : ""}>
+            Start: {formatDateLabel(task.start_date, "No start date")}
+          </span>
+          <span className={selectedForDelete ? "opacity-90" : ""}>
+            Due: {formatDateLabel(task.due_date, "No due date")}
+          </span>
+          {savingId === task.id && <span>Saving...</span>}
+        </div>
+      </div>
+
+      <div className="flex w-full items-center gap-2.5">
+        <select
+          value={task.project_id || ""}
+          onChange={(e) => onProjectChange(task.id, e.target.value || null)}
+          disabled={fieldsDisabled}
+          className={`cursor-pointer min-w-0 flex-1 appearance-none bg-transparent text-sm font-medium outline-none disabled:cursor-default ${
+            task.project_id ? "text-zinc-900" : "italic text-zinc-400"
+          } ${selectedForDelete ? "opacity-90" : ""}`}
+        >
+          <option value="">No workspace</option>
+          {projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="hidden md:flex md:flex-col md:items-start md:gap-2">
+        <select
+          value={task.status ?? "todo"}
+          onChange={(e) => {
+            const value = e.target.value as TaskStatus;
+            onCommitUpdate(task.id, { status: value });
+          }}
+          disabled={statusDisabled}
+          className={`appearance-none rounded-md border px-2.5 py-1 text-[13px] font-medium outline-none disabled:cursor-default cursor-pointer transition-all ${getTaskStatusBadgeClass(
+            task.status
+          )} ${selectedForDelete ? "opacity-90" : ""}`}
+        >
+          <option value="todo">To Do</option>
+          <option value="in_progress">In Progress</option>
+          <option value="blocked">Blocked</option>
+          <option value="done">Completed</option>
+        </select>
+        {savingId === task.id && <span className="text-xs text-zinc-500">Saving...</span>}
+      </div>
+
+      <div className="hidden min-w-0 md:flex md:h-full md:items-center text-sm text-zinc-500">
+        <DatePicker
+          disabled={!canManage}
+          value={task.start_date || ""}
+          variant="ghost"
+          className="-ml-0 h-auto px-0 py-0 text-sm font-normal text-zinc-600 hover:bg-transparent hover:text-zinc-900"
+          placeholder="Not set"
+          ghostPlaceholder
+          onChange={async (val) => {
+            await onCommitUpdate(task.id, { start_date: val || null });
+          }}
+        />
+      </div>
+
+      <div className="hidden min-w-0 md:flex md:h-full md:items-center">
+        <div className="flex items-center gap-2">
+          <DatePicker
+            disabled={!canManage}
+            value={task.due_date || ""}
+            danger={overdue}
+            variant="ghost"
+            className="h-auto px-0 py-0 text-sm font-normal text-zinc-600 hover:bg-transparent hover:text-zinc-900"
+            placeholder="Not set"
+            ghostPlaceholder
+            onChange={async (val) => {
+              await onCommitUpdate(task.id, { due_date: val || null });
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="flex w-full items-center justify-end md:justify-center">
+        {canManage && (
+          <button
+            type="button"
+            onClick={() => onToggleDeleteSelection(task.id)}
+            className={`rounded-md p-1.5 transition-all outline-none ${
+              selectedForDelete
+                ? "text-red-600 bg-red-100 hover:bg-red-200"
+                : "text-zinc-400 opacity-40 hover:text-red-600 hover:bg-zinc-100 hover:opacity-100 group-hover:opacity-100"
+            }`}
+            title="Delete task"
+          >
+            <Trash2 className="cursor-pointer h-4 w-4" />
+          </button>
+        )}
+      </div>
+      </div>
+
+      {isExpanded && (
+        <TaskDetailsPanels
+          taskId={task.id}
+          orgId={orgId}
+          currentUserId={currentUserId}
+          descriptionValue={descriptionValue}
+          persistedDescription={task.description}
+          canEditDescription={!fieldsDisabled}
+          canManageComments={canManage}
+          onDescriptionChange={setDescriptionValue}
+          onCommitUpdate={onCommitUpdate}
+        />
       )}
-    </button>
+    </div>
   );
+});
+
+function formatDateLabel(value: string | null, fallback: string) {
+  if (!value) return fallback;
+  return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function FilterChip({
-  label,
-  onRemove,
-}: {
-  label: string;
-  onRemove: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onRemove}
-      className="group inline-flex items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-600 transition-colors hover:border-zinc-400 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-    >
-      {label}
-      <X className="h-3 w-3 text-zinc-400 transition-colors group-hover:text-zinc-600" />
-    </button>
-  );
+function getTaskStatusLabel(status: string | null) {
+  if (status === "in_progress") return "In Progress";
+  if (status === "done") return "Completed";
+  if (status === "blocked") return "Blocked";
+  return "To Do";
 }
 
-// --- Main Component ---
+function getTaskStatusBadgeClass(status: string | null) {
+  if (status === "done") return "bg-emerald-50 text-emerald-700 border-emerald-200/60";
+  if (status === "in_progress") return "bg-indigo-50 text-indigo-700 border-indigo-200/60";
+  if (status === "blocked") return "bg-amber-50 text-amber-700 border-amber-200/60";
+  return "bg-zinc-100 text-zinc-700 border-zinc-200/60";
+}
 
-export default function AuditLogsPage() {
+export default function MyTasksPage() {
+  const role = useOrgRole();
+  const appRole = role && isAppRole(role) ? toAppRole(role) : null;
+  const capabilities = appRole ? getWorkspaceCapabilities(appRole) : null;
+  const canManage = false;
+
   const { orgId } = useParams<{ orgId: string }>();
   const { addToast } = useToast();
 
-  const [logs, setLogs] = useState<AuditLog[]>([]);
-  const [members, setMembers] = useState<OrganizationMember[]>([]);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [loadError, setLoadError] = useState(false);
+  const [projects, setProjects] = useState<ProjectResource[]>([]);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // Pagination & Server State
+  const [tasks, setTasks] = useState<EmployeeTaskRpc[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [hasMore, setHasMore] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState<AuditGroup | null>(null);
-  const [headingGone, setHeadingGone] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
-  const [filters, setFilters] = useState<AuditFilters>(EMPTY_FILTERS);
+  // Filter & Sort State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | TaskStatus>("all");
+  const [projectFilter, setProjectFilter] = useState<string>("all");
+  const [startDateFilter, setStartDateFilter] = useState<string>("");
+  const [dueDateFilter, setDueDateFilter] = useState<string>("");
+  const [sortBy, setSortBy] = useState<"title" | "status" | "start_date" | "due_date">("title");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
-  const cursorRef = useRef<string | undefined>(undefined);
-  const hasMoreRef = useRef(false);
-  const loadingMoreRef = useRef(false);
-  const initialLoadingRef = useRef(true);
+  // Modals / Helpers
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [title, setTitle] = useState("");
+  const [createDescription, setCreateDescription] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+  
+  const hasMoreRef = useRef(hasMore);
+  const initialLoadingRef = useRef(initialLoading);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const headingRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const loadingMoreRef = useRef(false);
+  const offsetRef = useRef(0);
   const addToastRef = useRef(addToast);
-
+  const isFirstRender = useRef(true);
+  const headingRef = useRef<HTMLDivElement>(null);
+  const [headingGone, setHeadingGone] = useState(false);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const toggleExpand = useCallback((taskId: string) => {
+    setExpandedTaskId((prev) => (prev === taskId ? null : taskId));
+  }, []);
+  
   useEffect(() => {
-    addToastRef.current = addToast;
-  }, [addToast]);
+    void supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id ?? null);
+    });
+  }, []);
 
+  useEffect(() => { addToastRef.current = addToast; }, [addToast]);
+  
   useEffect(() => {
     const el = headingRef.current;
     if (!el) return;
@@ -283,93 +379,90 @@ export default function AuditLogsPage() {
     return () => obs.disconnect();
   }, []);
 
-  // "/" focuses search, matching the shortcut convention of Linear/GitHub.
+  // Global Page Initialization (Projects)
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "/" || e.metaKey || e.ctrlKey) return;
-      const target = e.target as HTMLElement;
-      const isTyping =
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable;
-      if (isTyping) return;
-      e.preventDefault();
-      searchInputRef.current?.focus();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    void listOrgMembers(orgId).then((result) => {
-      if (!cancelled && result.data) setMembers(result.data);
-    });
-    return () => {
-      cancelled = true;
-    };
+    async function loadMeta() {
+      if (!orgId) return;
+      try {
+        const { data: projectsRes } = await supabase
+            .from("projects")
+            .select("id, name")
+            .eq("organization_id", orgId)
+            .is("deleted_at", null)
+            .order("name", { ascending: true });
+        
+        if (projectsRes) {
+          setProjects(projectsRes.map(p => ({ id: p.id, name: p.name })));
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+    void loadMeta();
   }, [orgId]);
 
-  const loadLogs = useCallback(
-    async (isNewSearch: boolean, pageCursor?: string) => {
-      if (!isNewSearch && loadingMoreRef.current) return;
-      if (!orgId) return;
+  const fetchTasks = useCallback(async (offset: number, append = false) => {
+    if (append && loadingMoreRef.current) return;
+    if (!orgId || !currentUserId) return;
 
-      if (isNewSearch) {
-        initialLoadingRef.current = true;
-        setInitialLoading(true);
-        setLoadError(false);
-        cursorRef.current = undefined;
-      } else {
-        loadingMoreRef.current = true;
-        setLoadingMore(true);
-      }
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
 
-      try {
-        const data = await listAuditLogs({
-          organizationId: orgId,
-          search: filters.search || undefined,
-          action: filters.action,
-          entityType: filters.entityType,
-          actorId: filters.actor,
-          fromDate: filters.fromDate,
-          toDate: filters.toDate,
-          cursor: isNewSearch ? undefined : pageCursor,
-          limit: PAGE_SIZE,
-        });
+    if (!append) {
+      initialLoadingRef.current = true;
+      setInitialLoading(true);
+      offsetRef.current = 0;
+    }
 
-        const nextCursor =
-          data.length > 0 ? data[data.length - 1].created_at : undefined;
-        const more = data.length === PAGE_SIZE;
+    try {
+      const { data, error } = await supabase.rpc("list_employee_tasks_with_meta", {
+        org_uuid: orgId,
+        employee_uuid: currentUserId,
+        page_size: PAGE_SIZE,
+        page_offset: offset,
+        search_query: searchQuery || undefined,
+        status_filter: statusFilter !== "all" ? statusFilter : undefined,
+        project_filter: projectFilter !== "all" && projectFilter !== "unassigned" ? projectFilter : undefined,
+        unassigned_only: projectFilter === "unassigned",
+        start_date_from: startDateFilter || undefined,
+        due_date_to: dueDateFilter || undefined,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+      });
 
-        cursorRef.current = nextCursor;
-        hasMoreRef.current = more;
-        setHasMore(more);
-        setLogs((prev) => (isNewSearch ? data : [...prev, ...data]));
-      } catch {
-        if (isNewSearch) {
-          setLoadError(true);
-          setLogs([]);
-        }
-        addToastRef.current("Failed to load audit logs", "error");
-      } finally {
-        initialLoadingRef.current = false;
-        setInitialLoading(false);
-        setLoadingMore(false);
-        loadingMoreRef.current = false;
-      }
-    },
-    [orgId, filters]
-  );
+      if (error) throw error;
 
+      const fetchedTasks = data ?? [];
+      const count = fetchedTasks[0]?.total_count ?? 0;
+      const newOffset = offset + fetchedTasks.length;
+
+      offsetRef.current = newOffset;
+      hasMoreRef.current = newOffset < count;
+
+      setTasks((prev) => (append ? [...prev, ...fetchedTasks] : fetchedTasks));
+      setTotalCount(count);
+      setHasMore(newOffset < count);
+    } catch (err) {
+      console.error(err);
+      addToastRef.current("Failed to load tasks", "error");
+    } finally {
+      initialLoadingRef.current = false;
+      setInitialLoading(false);
+      setLoadingMore(false);
+      loadingMoreRef.current = false;
+    }
+  }, [orgId, currentUserId, searchQuery, statusFilter, projectFilter, startDateFilter, dueDateFilter, sortBy, sortOrder]);
+
+  // Handle updates to server queries across filters
   useEffect(() => {
-    const timer = setTimeout(() => {
-      void loadLogs(true);
-    }, 300);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, orgId]);
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+    }
+    offsetRef.current = 0;
+    void fetchTasks(0, false);
+  }, [fetchTasks]);
 
+  // Infinite Scroll IntersectionObserver hook
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel || !hasMore || loadingMore || initialLoading) return;
@@ -379,192 +472,242 @@ export default function AuditLogsPage() {
         const entry = entries[0];
         if (!entry.isIntersecting) return;
         observer.unobserve(entry.target);
-        void loadLogs(false, cursorRef.current);
+        void fetchTasks(offsetRef.current, true);
       },
       { rootMargin: "200px" }
     );
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, loadingMore, initialLoading, loadLogs]);
+  }, [hasMore, loadingMore, initialLoading, fetchTasks]);
 
-  const groupedLogs = useMemo(() => groupAuditLogs(logs), [logs]);
+const canEditStatusForUser = useMemo(
+  () =>
+    appRole !== null && // Ensure appRole is defined
+    Boolean(currentUserId) &&
+    canEditTask(appRole, {
+      userId: currentUserId!, // Use non-null assertion or check currentUserId
+      assigneeId: currentUserId!,
+    }),
+  [appRole, currentUserId]
+);
 
-  const actorName = useMemo(
-    () => members.find((m) => m.user_id === filters.actor)?.name,
-    [members, filters.actor]
+  const updateTaskInState = useCallback((id: string, updates: TaskPatch) => {
+    setTasks(prev =>
+      prev.map(task =>
+        task.id === id ? { ...task, ...updates } : task
+      )
+    );
+  }, []);
+
+  const commitUpdate = useCallback(
+    async (id: string, updates: TablesUpdate<"tasks">) => {
+      try {
+        setSavingId(id);
+        await updateTask(id, updates, orgId);
+      } catch {
+        addToast("Failed to save task", "error");
+      } finally {
+        setSavingId(null);
+      }
+    },
+    [addToast, orgId]
   );
 
-  const activeChips = useMemo(() => {
-    const chips: { key: string; label: string; onRemove: () => void }[] = [];
+  const commitTaskUpdate = useCallback(
+    (id: string, updates: TablesUpdate<"tasks">) => {
+      const scopedUpdates = canManage
+        ? updates
+        : canEditStatusForUser && updates.status !== undefined
+          ? { status: updates.status }
+          : null;
 
-    if (filters.search) {
-      chips.push({
-        key: "search",
-        label: `"${filters.search}"`,
-        onRemove: () => setFilters((c) => ({ ...c, search: "" })),
-      });
-    }
-    if (filters.action) {
-      chips.push({
-        key: "action",
-        label: ACTION_LABELS[filters.action],
-        onRemove: () => setFilters((c) => ({ ...c, action: undefined })),
-      });
-    }
-    if (filters.entityType) {
-      chips.push({
-        key: "entityType",
-        label: ENTITY_LABELS[filters.entityType],
-        onRemove: () => setFilters((c) => ({ ...c, entityType: undefined })),
-      });
-    }
-    if (filters.actor) {
-      chips.push({
-        key: "actor",
-        label: actorName ?? "Unknown user",
-        onRemove: () => setFilters((c) => ({ ...c, actor: undefined })),
-      });
-    }
-    if (filters.fromDate || filters.toDate) {
-      const from = filters.fromDate
-        ? format(new Date(filters.fromDate), "MMM d")
-        : "Any";
-      const to = filters.toDate
-        ? format(new Date(filters.toDate), "MMM d")
-        : "Any";
-      chips.push({
-        key: "date",
-        label: `${from} – ${to}`,
-        onRemove: () =>
-          setFilters((c) => ({ ...c, fromDate: undefined, toDate: undefined })),
-      });
-    }
-    return chips;
-  }, [filters, actorName]);
+      if (!scopedUpdates) return;
 
-  const hasActiveFilters = activeChips.length > 0;
+      const patch: TaskPatch = {
+        ...scopedUpdates,
+        status: scopedUpdates.status ?? undefined,
+      };
 
-  const auditToolbar = (
+      updateTaskInState(id, patch);
+      void commitUpdate(id, scopedUpdates);
+    },
+    [canManage, commitUpdate, canEditStatusForUser, updateTaskInState]
+  );
+
+  const handleProjectAssignment = useCallback(
+    async (taskId: string, projectId: string | null) => {
+      try {
+        await updateTask(taskId, { project_id: projectId }, orgId);
+        const project = projects.find((p) => p.id === projectId);
+        updateTaskInState(taskId, {
+          project_id: projectId,
+          project_name: projectId ? project?.name ?? null : null,
+        });
+      } catch {
+        addToast("Failed to update workspace", "error");
+      }
+    },
+    [addToast, orgId, projects, updateTaskInState]
+  );
+
+  function handleSort(column: typeof sortBy) {
+    if (sortBy === column) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(column);
+      setSortOrder("asc");
+    }
+  }
+
+  function SortIcon(column: typeof sortBy) {
+    if (sortBy !== column) return <ArrowUpDown className="h-3.5 w-3.5 text-zinc-400" />;
+    return sortOrder === "asc" 
+      ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> 
+      : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />;
+  }
+
+  const selectedTaskIdSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds]);
+  
+  const cancelDeleteMode = useCallback(() => {
+    setDeleteMode(false);
+    setSelectedTaskIds([]);
+  }, []);
+
+  const toggleTaskSelection = useCallback((taskId: string) => {
+    setSelectedTaskIds((prev) => {
+      const next = prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId];
+      setDeleteMode(next.length > 0);
+      return next;
+    });
+  }, []);
+  
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedTaskIds.length === 0) return;
+
+    const taskIdsToDelete = [...selectedTaskIds];
+    const backupTasks = tasks;
+    const backupTotal = totalCount;
+
+    setTasks((prev) => prev.filter((task) => !taskIdsToDelete.includes(task.id)));
+    setTotalCount((prev) => Math.max(0, prev - taskIdsToDelete.length));
+    setDeleteMode(false);
+    setSelectedTaskIds([]);
+
+    try {
+      await Promise.all(taskIdsToDelete.map((taskId) => deleteTaskAction(taskId, orgId)));
+      addToast(`Deleted ${taskIdsToDelete.length} task${taskIdsToDelete.length === 1 ? "" : "s"}`, "success");
+    } catch {
+      setTasks(backupTasks);
+      setTotalCount(backupTotal);
+      setDeleteMode(true);
+      setSelectedTaskIds(taskIdsToDelete);
+      addToast("Failed to delete selected tasks", "error");
+    }
+  }, [addToast, orgId, selectedTaskIds, tasks, totalCount]);
+
+  async function handleCreate() {
+    if (!title.trim() || !currentUserId) return;
+
+    try {
+      setCreating(true);
+      const created = await createTask(
+        title.trim(),
+        createDescription.trim() || undefined,
+        startDate,
+        dueDate,
+        orgId,
+        selectedProjectId || null,
+        currentUserId
+      );
+
+      const newTask: EmployeeTaskRpc = {
+        id: created.id,
+        organization_id: orgId,
+        project_id: selectedProjectId || null,
+        project_name: projects.find((p) => p.id === selectedProjectId)?.name ?? null,
+        title: created.title,
+        description: created.description ?? null,
+        status: "todo",
+        start_date: startDate || null,
+        due_date: dueDate || null,
+        created_by: currentUserId,
+        created_at: new Date().toISOString(),
+        total_count: totalCount + 1,
+      };
+
+      setTasks((prev) => [newTask, ...prev]);
+      setTotalCount((prev) => prev + 1);
+      setTitle("");
+      setCreateDescription("");
+      setStartDate("");
+      setDueDate("");
+      setSelectedProjectId("");
+      setShowCreate(false);
+      addToast("Task created", "success");
+    } catch {
+      addToast("Failed to create task", "error");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  const tasksToolbar = (
     <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+      <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative w-full flex-1 max-w-xl">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <Input
-            ref={searchInputRef}
-            placeholder="Search logs"
-            aria-label="Search audit logs"
-            value={filters.search}
-            onChange={(e) =>
-              setFilters((current) => ({ ...current, search: e.target.value }))
-            }
-            className="h-9 border-zinc-300 bg-white pl-9 pr-9 text-sm text-zinc-700 placeholder:text-zinc-500 shadow-sm focus-visible:ring-2 focus-visible:ring-indigo-500"
+            placeholder="Search tasks"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-9 border-zinc-200 bg-white pl-9 text-sm text-zinc-700 placeholder:text-zinc-500 focus-visible:ring-2 focus-visible:ring-indigo-500 border-zinc-300 shadow-sm"
           />
-          {!filters.search && (
-            <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[11px] font-medium text-zinc-400">
-              /
-            </kbd>
-          )}
         </div>
-
-        <Select
-          value={filters.action ?? "all"}
-          onValueChange={(value) =>
-            setFilters((current) => ({
-              ...current,
-              action:
-                value === "all"
-                  ? undefined
-                  : (value as AuditFilters["action"]),
-            }))
-          }
+        <select
+          value={projectFilter}
+          onChange={(e) => setProjectFilter(e.target.value)}
+          className="h-9 w-full cursor-pointer rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-44"
         >
-          <SelectTrigger
-            aria-label="Filter by action"
-            className="h-9 w-full border-zinc-300 bg-white text-sm text-zinc-700 shadow-sm sm:w-36"
-          >
-            <SelectValue placeholder="All actions" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All actions</SelectItem>
-            <SelectItem value="CREATE">Create</SelectItem>
-            <SelectItem value="UPDATE">Update</SelectItem>
-            <SelectItem value="DELETE">Delete</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={filters.entityType ?? "all"}
-          onValueChange={(value) =>
-            setFilters((current) => ({
-              ...current,
-              entityType:
-                value === "all"
-                  ? undefined
-                  : (value as AuditFilters["entityType"]),
-            }))
-          }
+          <option value="all">Any workspace</option>
+          <option value="unassigned">No workspace</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as "all" | TaskStatus)}
+          className="h-9 w-full cursor-pointer rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-700 shadow-sm outline-none transition-colors focus:border-transparent focus:ring-2 focus:ring-indigo-500 sm:w-44"
         >
-          <SelectTrigger
-            aria-label="Filter by resource type"
-            className="h-9 w-full border-zinc-300 bg-white text-sm text-zinc-700 shadow-sm sm:w-40"
-          >
-            <SelectValue placeholder="Any resource" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Any resource</SelectItem>
-            <SelectItem value="task">Task</SelectItem>
-            <SelectItem value="project">Project</SelectItem>
-            <SelectItem value="member">Member</SelectItem>
-            <SelectItem value="org">Organization</SelectItem>
-          </SelectContent>
-        </Select>
+          <option value="all">All statuses</option>
+          <option value="todo">To Do</option>
+          <option value="in_progress">In Progress</option>
+          <option value="blocked">Blocked</option>
+          <option value="done">Completed</option>
+        </select>
 
-        <Select
-          value={filters.actor ?? "all"}
-          onValueChange={(value) =>
-            setFilters((current) => ({
-              ...current,
-              actor: value === "all" ? undefined : value,
-            }))
-          }
-        >
-          <SelectTrigger
-            aria-label="Filter by user"
-            className="h-9 w-full border-zinc-300 bg-white text-sm text-zinc-700 shadow-sm sm:w-44"
-          >
-            <SelectValue placeholder="Any user" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Any user</SelectItem>
-            {members.map((member) => (
-              <SelectItem key={member.user_id} value={member.user_id}>
-                {member.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        
 
         <div className="flex items-center gap-2">
           <DatePicker
-            value={filters.fromDate ?? null}
-            onChange={(fromDate) =>
-              setFilters((current) => ({ ...current, fromDate: fromDate ?? undefined }))
-            }
-            placeholder="From date"
-            className="h-9 w-[150px] justify-start border-zinc-300 bg-white px-3 text-sm font-normal shadow-sm hover:bg-white"
+              value={startDateFilter || null}
+              onChange={(value) => setStartDateFilter(value ?? "")}
+              placeholder="Start date"
+              className="h-9 w-[150px] justify-start border-zinc-300 bg-white px-3 text-sm font-normal shadow-sm hover:bg-white"
           />
-          <ArrowRight className="h-4 w-4 shrink-0 text-zinc-400" aria-hidden="true" />
+
+          <ArrowRight className="h-4 w-4 text-zinc-400" />
+
           <DatePicker
-            value={filters.toDate ?? null}
-            onChange={(toDate) =>
-              setFilters((current) => ({ ...current, toDate: toDate ?? undefined }))
-            }
-            placeholder="To date"
-            className="h-9 w-[150px] justify-start border-zinc-300 bg-white px-3 text-sm font-normal shadow-sm hover:bg-white"
+              value={dueDateFilter || null}
+              onChange={(value) => setDueDateFilter(value ?? "")}
+              placeholder="Due date"
+              className="h-9 w-[150px] justify-start border-zinc-300 bg-white px-3 text-sm font-normal shadow-sm hover:bg-white"
           />
         </div>
       </div>
+
     </div>
   );
 
@@ -572,440 +715,247 @@ export default function AuditLogsPage() {
     <div className="flex w-full flex-col gap-4 pb-12">
       <div className="flex items-start justify-between gap-4">
         <div ref={headingRef} className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 truncate max-w-[640px]">
-            Audit Logs
+          <h1
+            className="text-2xl font-semibold tracking-tight text-zinc-900 truncate max-w-[640px]"
+          >
+            My Tasks
           </h1>
           <p className="text-sm text-zinc-500">
-            Track user activity, security events, and system changes.
+            Manage your assigned tasks and workspace allocations.
           </p>
         </div>
       </div>
 
+      {deleteMode && selectedTaskIds.length > 0 && (
+        <div className="fixed top-4 left-1/2 z-[100] flex w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-white shadow-xl animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500/20 text-xs font-semibold text-red-400">
+              {selectedTaskIds.length}
+            </span>
+            <span>
+              Delete {selectedTaskIds.length} task{selectedTaskIds.length === 1 ? "" : "s"}?
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={cancelDeleteMode}
+              className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white"
+              title="Cancel selection"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <Button
+              size="sm"
+              className="h-8 bg-red-600 px-3 text-xs font-medium text-white hover:bg-red-700"
+              onClick={() => void handleBulkDelete()}
+            >
+              Confirm
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col">
-        <div
-          className={`sticky top-0 z-30 border border-b-0 border-zinc-200 bg-white transition-[border-radius] duration-150 ${
-            headingGone ? "rounded-none" : "rounded-t-lg"
-          }`}
-        >
+        <div className={`sticky top-0 z-30 border border-b-0 border-zinc-200 bg-white transition-[border-radius] duration-150 ${headingGone ? "rounded-none" : "rounded-t-lg"}`}>
           {headingGone && (
             <div
               aria-hidden="true"
               className="pointer-events-none absolute top-0 left-0 right-0 h-12 -translate-y-full"
               style={{
-                background:
-                  "linear-gradient(to top, rgba(249,250,251,0.95) 0%, transparent 100%)",
+                background: "linear-gradient(to top, rgba(249,250,251,0.95) 0%, transparent 100%)",
               }}
             />
           )}
           <div className="flex items-center justify-between gap-4 rounded-t-lg border-b border-zinc-300 bg-zinc-200/80 px-4 py-3 overflow-hidden">
-            <div className="flex-1">{auditToolbar}</div>
+            <div className="flex-1">{tasksToolbar}</div>
           </div>
 
-          <div className="flex items-center justify-between gap-3 border-b border-zinc-300 bg-zinc-200/80 px-6 py-2">
-            {hasActiveFilters ? (
-              <div className="flex flex-wrap items-center gap-1.5">
-                {activeChips.map((chip) => (
-                  <FilterChip
-                    key={chip.key}
-                    label={chip.label}
-                    onRemove={chip.onRemove}
-                  />
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setFilters(EMPTY_FILTERS)}
-                  className="px-1.5 text-[12px] font-medium text-zinc-500 underline-offset-2 transition-colors hover:text-zinc-700 hover:underline"
-                >
-                  Clear all
-                </button>
-              </div>
-            ) : (
-              <p className="text-[12px] text-zinc-600">No filters applied</p>
-            )}
-            <p
-              className="shrink-0 text-[12px] tabular-nums text-zinc-600"
-              aria-live="polite"
-            >
-              <span className="font-medium text-zinc-600">{logs.length}</span>{" "}
-              event{logs.length === 1 ? "" : "s"}
+          <div className="flex items-center justify-between border-b border-zinc-300 bg-zinc-200/80 px-6 py-2">
+            <p className="text-[12px] text-zinc-600">
+              Showing{" "}
+              <span className="font-medium text-zinc-600">{tasks.length}</span>
+              {" "}of{" "}
+              <span className="font-medium text-zinc-600">{totalCount}</span>
+              {" "}tasks
             </p>
           </div>
 
           <div
-            className={`hidden items-center gap-4 border-b border-zinc-300 bg-zinc-200/80 px-6 py-3 text-[13px] font-medium uppercase tracking-wider text-zinc-500 md:grid ${desktopAuditGrid}`}
+            className={`hidden items-center gap-4 border-b border-zinc-200 bg-zinc-200/80 px-6 py-3 text-[13px] font-medium uppercase tracking-wider text-zinc-500 md:grid ${desktopTasksTableGrid}`}
           >
-            <div>Actor</div>
-            <div>Action</div>
-            <div>Resource</div>
-            <div>Changes</div>
-            <div className="text-right">Time</div>
+            <div
+              onClick={() => handleSort("title")}
+              className="flex cursor-pointer select-none items-center gap-1 hover:text-zinc-800"
+            >
+              Title {SortIcon("title")}
+            </div>
+            <div className="whitespace-nowrap">Workspace</div>
+            <div className="whitespace-nowrap">Status</div>
+            <div
+              onClick={() => handleSort("start_date")}
+              className="flex cursor-pointer select-none items-center gap-1 hover:text-zinc-800"
+            >
+              Start Date {SortIcon("start_date")}
+            </div>
+            <div
+              onClick={() => handleSort("due_date")}
+              className="flex cursor-pointer select-none items-center gap-1 hover:text-zinc-800"
+            >
+              Due Date {SortIcon("due_date")}
+            </div>
+            <div className="flex justify-center">
+              <span className="sr-only">Actions</span>
+            </div>
           </div>
         </div>
 
-        {!initialLoading && loadError ? (
-          <div className="flex flex-col items-center justify-center gap-4 rounded-b-xl border border-t-0 border-zinc-200 bg-white p-12 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-red-100 bg-red-50">
-              <AlertTriangle className="h-5 w-5 text-red-500" />
-            </div>
-            <div className="space-y-1">
-              <h2 className="text-sm font-semibold text-zinc-900">
-                Couldn&apos;t load audit logs
-              </h2>
-              <p className="max-w-xs text-sm text-zinc-400">
-                Something went wrong while fetching events. Check your
-                connection and try again.
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              onClick={() => void loadLogs(true)}
-              className="h-9 gap-2 px-4 text-sm font-medium"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              Try again
-            </Button>
-          </div>
-        ) : !initialLoading && groupedLogs.length === 0 ? (
+        {tasks.length === 0 && !initialLoading ? (
           <div className="flex flex-col items-center justify-center gap-4 rounded-b-xl border border-t-0 border-dashed border-zinc-200 bg-zinc-50/60 p-12 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full border border-indigo-100 bg-indigo-50">
-              <ClipboardList className="h-5 w-5 text-indigo-500" />
+              <Calendar className="h-5 w-5 text-indigo-500" />
             </div>
             <div className="space-y-1">
-              <h2 className="text-sm font-semibold text-zinc-900">No audit logs found</h2>
+              <h2 className="text-sm font-semibold text-zinc-900">No tasks found</h2>
               <p className="max-w-xs text-sm text-zinc-400">
-                {hasActiveFilters
-                  ? "Try widening your search or clearing the applied filters."
-                  : "Activity across tasks, workspaces, and members will show up here."}
+                Create a task to organize work or clear your applied workspace filters.
               </p>
             </div>
-            {hasActiveFilters && (
+            {canManage && (
               <Button
-                variant="outline"
-                onClick={() => setFilters(EMPTY_FILTERS)}
-                className="h-9 px-4 text-sm font-medium"
+                onClick={() => setShowCreate(true)}
+                className="h-9 border-transparent bg-indigo-500 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-600"
               >
-                Clear filters
+                <Plus className="mr-2 h-4 w-4" />
+                Create task
               </Button>
             )}
           </div>
-        ) : (
-          <div className="w-full overflow-hidden rounded-b-xl border border-t-0 border-zinc-200 bg-white shadow-sm">
-            <div
-              aria-label="Audit log events"
-              className={`divide-y divide-zinc-100 ${
-                initialLoading ? "opacity-40 pointer-events-none" : ""
-              }`}
-            >
-              {initialLoading
-                ? Array.from({ length: 6 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className={`flex flex-col gap-3 px-6 py-4 md:grid md:items-center md:gap-4 md:py-3.5 ${desktopAuditGrid}`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Skeleton className="h-8 w-8 rounded-full" />
-                        <Skeleton className="h-4 w-32" />
-                      </div>
-                      <Skeleton className="hidden h-5 w-16 rounded md:block" />
-                      <Skeleton className="hidden h-5 w-20 rounded md:block" />
-                      <Skeleton className="hidden h-4 w-24 md:block" />
-                      <Skeleton className="hidden h-4 w-20 md:ml-auto md:block" />
-                    </div>
-                  ))
-                : groupedLogs.map((group) => (
-                    <AuditLogGroupRow
-                      key={group.id}
-                      group={group}
-                      isSelected={selectedGroup?.id === group.id}
-                      onClick={() => setSelectedGroup(group)}
-                    />
-                  ))}
-            </div>
-
-            <div ref={sentinelRef} className="h-px w-full bg-transparent" />
-
-            {loadingMore && (
-              <div className="flex items-center justify-center gap-2 border-t border-zinc-100 bg-zinc-50/50 py-4 text-xs font-medium text-zinc-500">
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-500" />
-                Loading older events…
-              </div>
-            )}
-
-            {!loadingMore && hasMore && (
-              <div className="flex items-center justify-center border-t border-zinc-100 bg-zinc-50/50 py-3">
-                <button
-                  type="button"
-                  onClick={() => void loadLogs(false, cursorRef.current)}
-                  className="text-xs font-medium text-zinc-500 underline-offset-2 hover:text-zinc-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded px-2 py-1"
-                >
-                  Load older events
-                </button>
-              </div>
-            )}
+        ) : null}
+        
+        <div className="w-full overflow-hidden rounded-b-xl border border-t-0 border-zinc-200 bg-white shadow-sm opacity-100 transition-opacity">
+          <div className={`divide-y divide-zinc-100 ${initialLoading ? "opacity-40 pointer-events-none" : ""}`}>
+            {tasks.map((task) => (
+              <EmployeeTaskRow
+                key={task.id}
+                task={task}
+                orgId={orgId}
+                currentUserId={currentUserId}
+                canManage={canManage}
+                
+                canEditStatus={canEditStatusForUser}
+                deleteMode={deleteMode}
+                selectedForDelete={selectedTaskIdSet.has(task.id)}
+                projects={projects}
+                savingId={savingId}
+                onCommitUpdate={commitTaskUpdate}
+                onProjectChange={handleProjectAssignment}
+                onToggleDeleteSelection={toggleTaskSelection}
+                isExpanded={expandedTaskId === task.id}
+                onToggleExpand={toggleExpand}
+              />
+            ))}
           </div>
-        )}
-      </div>
 
-      <AuditLogDetailsSheet
-        group={selectedGroup}
-        onClose={() => setSelectedGroup(null)}
-      />
-    </div>
-  );
-}
+          <div ref={sentinelRef} className="h-4 w-full bg-transparent" />
 
-// --- Row Component ---
-
-function AuditLogGroupRow({
-  group,
-  isSelected,
-  onClick,
-}: {
-  group: AuditGroup;
-  isSelected: boolean;
-  onClick: () => void;
-}) {
-  const allChanges = group.logs.flatMap((log) => log.changes);
-  const changeCount = allChanges.length;
-  const mergedCount = group.logs.length;
-
-  const timestamp = new Date(group.created_at);
-  const relativeTime = formatDistanceToNowStrict(timestamp, { addSuffix: true });
-  const exactTime = format(timestamp, "PPp");
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick();
-        }
-      }}
-      aria-label={`${group.actor_name} ${ACTION_LABELS[group.action] ?? group.action} on ${
-        ENTITY_LABELS[group.entity_type] ?? group.entity_type
-      }, ${relativeTime}`}
-      className={`group flex cursor-pointer flex-col gap-3 px-6 py-4 outline-none transition-colors hover:bg-zinc-50 focus-visible:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 md:grid md:items-center md:gap-4 md:py-3.5 ${desktopAuditGrid} ${
-        isSelected ? "bg-indigo-50/50" : ""
-      }`}
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <Avatar className="h-8 w-8 shrink-0 border border-zinc-200">
-          <AvatarFallback className="bg-zinc-100 text-xs font-medium text-zinc-600">
-            {getInitials(group.actor_name)}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex min-w-0 flex-col">
-          <span className="flex items-center gap-1.5 truncate text-sm font-medium text-zinc-900">
-            <span className="truncate">{group.actor_name}</span>
-            {mergedCount > 1 && (
-              <span
-                title={`${mergedCount} updates merged`}
-                className="shrink-0 rounded-full bg-zinc-100 px-1.5 py-px text-[11px] font-medium leading-normal text-zinc-500"
-              >
-                ×{mergedCount}
-              </span>
-            )}
-          </span>
-          {group.actor_id && (
-            <span className="hidden truncate font-mono text-xs text-zinc-400 md:block">
-              {group.actor_id}
-            </span>
+          {loadingMore && (
+            <div className="flex items-center justify-center border-t border-zinc-100 bg-zinc-50/50 py-4 text-xs font-medium text-zinc-500">
+              <span className="animate-pulse">Loading additional tasks...</span>
+            </div>
           )}
         </div>
       </div>
 
-      <div className="hidden md:block">
-        <ActionBadge action={group.action} />
-      </div>
-
-      <div className="hidden min-w-0 md:flex md:items-center">
-        <EntityBadge entityType={group.entity_type} />
-      </div>
-
-      <div className="hidden text-sm text-zinc-500 md:flex md:items-center">
-        {changeCount > 0 ? (
-          <span className="flex items-center gap-1.5">
-            <MoreHorizontal className="h-4 w-4 text-zinc-400 transition-colors group-hover:text-zinc-600" />
-            {changeCount} {changeCount === 1 ? "change" : "changes"}
-          </span>
-        ) : (
-          <span className="text-xs italic text-zinc-400">No details</span>
-        )}
-      </div>
-
-      <div className="hidden items-center justify-end gap-2 md:flex">
-        <div
-          className="flex items-center gap-1.5 whitespace-nowrap text-sm tabular-nums text-zinc-500"
-          title={exactTime}
+      {showCreate && (
+        <AppModal
+          title="Add Task"
+          description="Create a task and optionally attach it to a workspace right away."
+          onClose={() => setShowCreate(false)}
+          widthClassName="w-[380px]"
+          footer={
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setShowCreate(false)}
+                disabled={creating}
+                className="h-8 px-3 text-sm text-zinc-600"
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={creating}
+                onClick={() => void handleCreate()}
+                className="h-8 bg-indigo-600 px-3 text-sm text-white hover:bg-indigo-700"
+              >
+                {creating ? "Creating..." : "Create"}
+              </Button>
+            </>
+          }
         >
-          <Clock className="h-3.5 w-3.5 opacity-70" />
-          {relativeTime}
-        </div>
-        <ChevronRight className="h-4 w-4 text-zinc-300 transition-colors group-hover:text-zinc-500" />
-      </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-600">Task title</label>
+            <input
+              placeholder="Task title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 shadow-sm outline-none transition-[border-color,box-shadow] placeholder:text-zinc-400 hover:border-zinc-300 focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
 
-      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 md:hidden">
-        <ActionBadge action={group.action} />
-        <EntityBadge entityType={group.entity_type} />
-        <span>
-          {changeCount > 0
-            ? `${changeCount} ${changeCount === 1 ? "change" : "changes"}`
-            : "No details"}
-        </span>
-        <span className="ml-auto flex items-center gap-1 tabular-nums">
-          <Clock className="h-3 w-3" />
-          {relativeTime}
-        </span>
-      </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-600">Start date</label>
+            <div className="relative">
+              <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+              <DatePicker
+              value={startDate || null}
+              onChange={(value) => setStartDate(value ?? "")}
+              placeholder="Start date"
+              className="h-9 w-[150px] justify-start border-zinc-300 bg-white px-3 text-sm font-normal shadow-sm hover:bg-white"
+            />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-600">Due date</label>
+            <div className="relative">
+              <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+              <DatePicker
+              value={dueDate || null}
+              onChange={(value) => setDueDate(value ?? "")}
+              placeholder="Due date"
+              className="h-9 w-[150px] justify-start border-zinc-300 bg-white px-3 text-sm font-normal shadow-sm hover:bg-white"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-600">Workspace</label>
+            <select
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              className="cursor-pointer h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 shadow-sm outline-none transition-[border-color,box-shadow] hover:border-zinc-300 focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">No workspace</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-zinc-600">Description</label>
+            <textarea
+              value={createDescription}
+              onChange={(e) => setCreateDescription(e.target.value)}
+              rows={2}
+              placeholder="Add description"
+              className="w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700 placeholder:text-zinc-400 outline-none transition-[border-color,box-shadow] focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+        </AppModal>
+      )}
     </div>
-  );
-}
-
-// --- Details Drawer Component ---
-
-function AuditLogDetailsSheet({
-  group,
-  onClose,
-}: {
-  group: AuditGroup | null;
-  onClose: () => void;
-}) {
-  if (!group) return null;
-
-  const allChanges = group.logs.flatMap((log) => log.changes);
-  const exactTime = format(new Date(group.created_at), "PPp");
-
-  return (
-    <Sheet open={!!group} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-full overflow-y-auto border-l border-zinc-200 bg-white p-0 sm:max-w-md">
-        <div className="border-b border-zinc-200 bg-zinc-50 p-6">
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2 text-lg font-semibold text-zinc-900">
-              Event details
-              <ActionBadge action={group.action} />
-            </SheetTitle>
-            <SheetDescription className="text-zinc-500">{exactTime}</SheetDescription>
-          </SheetHeader>
-        </div>
-
-        <div className="space-y-8 p-6">
-          <section className="space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Actor
-            </h4>
-            <div className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-white p-3">
-              <Avatar className="h-10 w-10 border border-zinc-200">
-                <AvatarFallback className="bg-zinc-100 text-sm font-medium text-zinc-600">
-                  {getInitials(group.actor_name)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex min-w-0 flex-1 flex-col">
-                <span className="text-sm font-medium text-zinc-900">{group.actor_name}</span>
-                <span className="truncate font-mono text-xs text-zinc-500">
-                  {group.actor_id || "System"}
-                </span>
-              </div>
-              {group.actor_id && (
-                <CopyIconButton value={group.actor_id} label="Actor ID" />
-              )}
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Resource
-            </h4>
-            <div className="grid grid-cols-3 items-center gap-y-3 text-sm">
-              <div className="text-zinc-500">Type</div>
-              <div className="col-span-2">
-                <EntityBadge entityType={group.entity_type} />
-              </div>
-              <div className="text-zinc-500">ID</div>
-              <div className="col-span-2 flex items-center gap-1.5">
-                <span className="w-fit truncate rounded bg-zinc-100 px-2 py-1 font-mono text-xs text-zinc-700">
-                  {group.entity_id}
-                </span>
-                <CopyIconButton value={group.entity_id} label="Resource ID" />
-              </div>
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Changes ({allChanges.length})
-            </h4>
-
-            {allChanges.length > 0 ? (
-              <div className="overflow-hidden rounded-lg border border-zinc-200">
-                <div className="max-h-[340px] divide-y divide-zinc-100 overflow-y-auto">
-                  {allChanges.map((change, index) => (
-                    <div key={index} className="p-3">
-                      <div className="mb-2 text-xs font-semibold capitalize text-zinc-700">
-                        {change.field.replaceAll("_", " ")}
-                      </div>
-
-                      {group.action === "UPDATE" ? (
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="rounded-md border border-red-100 bg-red-50/60 p-2">
-                            <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-red-500">
-                              Before
-                            </div>
-                            <div className="break-all font-mono text-xs text-red-700">
-                              {formatJsonValue(change.before)}
-                            </div>
-                          </div>
-                          <div className="rounded-md border border-emerald-100 bg-emerald-50/60 p-2">
-                            <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-emerald-600">
-                              After
-                            </div>
-                            <div className="break-all font-mono text-xs text-emerald-700">
-                              {formatJsonValue(change.after)}
-                            </div>
-                          </div>
-                        </div>
-                      ) : group.action === "DELETE" ? (
-                        <div className="rounded-md border border-red-100 bg-red-50/60 p-2">
-                          <div className="break-all font-mono text-xs text-red-700">
-                            {formatJsonValue(change.before)}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="rounded-md border border-emerald-100 bg-emerald-50/60 p-2">
-                          <div className="break-all font-mono text-xs text-emerald-700">
-                            {formatJsonValue(change.after)}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-zinc-200 bg-zinc-50/60 p-4 text-center text-sm text-zinc-500">
-                No detailed field changes recorded for this event.
-              </div>
-            )}
-          </section>
-
-          <section className="space-y-3">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Metadata
-            </h4>
-            <div className="grid grid-cols-3 items-center gap-y-3 text-sm text-zinc-600">
-              <div className="text-zinc-500">Event ID</div>
-              <div className="col-span-2 flex items-center gap-1.5">
-                <span className="truncate font-mono text-xs">{group.id}</span>
-                <CopyIconButton value={group.id} label="Event ID" />
-              </div>
-              <div className="text-zinc-500">Timestamp</div>
-              <div className="col-span-2">{exactTime}</div>
-            </div>
-          </section>
-        </div>
-      </SheetContent>
-    </Sheet>
   );
 }
