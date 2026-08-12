@@ -13,7 +13,11 @@ import {
   Trash2,
   X,
   ChevronRight,
+  MessageSquare,
+  ListSortDescending,
+  MessageSquareDashed,
 } from "lucide-react";
+import { CommentsPopover } from "@/components/tasks/CommentsPopover";
 import type { Enums, TablesUpdate } from "@/lib/types/database";
 import { updateTask } from "@/actions/task/update";
 import { createTask } from "@/actions/task/create";
@@ -29,6 +33,7 @@ import { isAppRole, toAppRole } from "@/lib/auth/permissions";
 import { supabase } from "@/lib/supabase/client";
 import { useOrgRole } from "@/hooks/useOrgRole";
 import { DatePicker } from "@/components/ui/date-picker";
+import { CommentsPanel } from "@/components/tasks/CommentsPanel";
 
 export type EmployeeTaskRpc = {
   id: string;
@@ -110,6 +115,9 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
 }: TaskRowProps) {
   const [titleValue, setTitleValue] = useState(task.title);
   const [descriptionValue, setDescriptionValue] = useState(task.description ?? "");
+  const [descPopoverOpen, setDescPopoverOpen] = useState(false);
+  const [commentsPopoverOpen, setCommentsPopoverOpen] = useState(false);
+  const commentsButtonRef = useRef<HTMLButtonElement>(null);
 
   const fieldsDisabled = !canManage || deleteMode;
   const statusDisabled = deleteMode || (!canManage && !canEditStatus);
@@ -126,147 +134,205 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
         className={`task-grid-row flex flex-col items-start gap-3 px-4 py-4 md:grid md:items-center md:gap-4 md:px-6 md:py-3.5 ${desktopTasksTableGrid}`}
       >
         <div className="flex w-full min-w-0 flex-col">
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => onToggleExpand(task.id)}
-              className="shrink-0 text-zinc-400 transition-transform duration-150 hover:text-zinc-700"
-              style={{ transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)" }}
-              aria-label={isExpanded ? "Collapse" : "Expand"}
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-            <input
-              value={titleValue}
-              onChange={(e) => setTitleValue(e.target.value)}
-              onBlur={(e) => {
-                if (e.target.value !== task.title) {
-                  onCommitUpdate(task.id, { title: e.target.value });
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") e.currentTarget.blur();
-              }}
-              disabled={fieldsDisabled}
-              className={`w-full truncate rounded px-1.5 py-0.5 text-[15px] font-medium outline-none transition-colors disabled:cursor-default
-                ${
-                  !fieldsDisabled
-                    ? "cursor-text border border-transparent hover:border-zinc-300 hover:bg-zinc-50 focus:border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500"
-                    : "border-transparent bg-transparent"
-                }
-                ${
-                  selectedForDelete
-                    ? "line-through text-red-950/80 opacity-90"
-                    : task.status === "done"
-                    ? "text-zinc-900"
-                    : "text-zinc-900"
-                }
-              `}
-            />
+          <div className="flex min-w-0 items-center gap-1">
+            <span className="relative inline-block min-w-6 max-w-sm shrink">
+              <span
+                aria-hidden="true"
+                className={`invisible block truncate rounded px-1.5 py-0.5 text-[15px] font-medium ${
+                  selectedForDelete ? "line-through" : ""
+                }`}
+              >
+                {titleValue || " "}
+              </span>
+              <input
+                value={titleValue}
+                onChange={(e) => setTitleValue(e.target.value)}
+                onBlur={(e) => {
+                  if (e.target.value !== task.title) {
+                    onCommitUpdate(task.id, { title: e.target.value });
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                }}
+                onClick={(e) => e.stopPropagation()}
+                disabled={fieldsDisabled}
+                className={`absolute inset-0 w-full min-w-0 truncate rounded px-1.5 py-0.5 text-[15px] font-medium outline-none transition-colors disabled:cursor-default
+                  ${
+                    !fieldsDisabled
+                      ? "cursor-text border border-transparent hover:border-zinc-300 hover:bg-zinc-50 focus:border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500"
+                      : "border-transparent bg-transparent"
+                  }
+                  ${
+                    selectedForDelete
+                      ? "line-through text-red-950/80 opacity-90"
+                      : task.status === "done"
+                      ? "text-zinc-900"
+                      : "text-zinc-900"
+                  }
+                `}
+              />
+            </span>
+            {task.description && (
+              <div
+                className="relative shrink-0"
+                onMouseEnter={() => setDescPopoverOpen(true)}
+                onMouseLeave={() => setDescPopoverOpen(false)}
+              >
+                <ListSortDescending
+                  className="h-4 w-4 text-zinc-500 hover:text-zinc-600"
+                  strokeWidth={2}
+                />
+
+                {descPopoverOpen && (
+                  <div
+                    className="absolute left-0 top-6 z-50 w-72 rounded-lg border border-zinc-200 bg-white p-3 shadow-lg"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <p className="max-h-40 overflow-y-auto whitespace-pre-wrap text-sm text-zinc-600">
+                      {task.description}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="relative shrink-0">
+              <button
+                ref={commentsButtonRef}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCommentsPopoverOpen((prev) => !prev);
+                }}
+                className="text-zinc-400 hover:text-zinc-600"
+                title="Comments"
+              >
+                {/* <MessageSquare className="h-4 w-4" /> */}
+                <MessageSquareDashed className="h-[13px] w-4 text-zinc-500 hover:text-zinc-600" />
+              </button>
+              {commentsPopoverOpen && (
+                <CommentsPopover
+                  taskId={task.id}
+                  orgId={orgId}
+                  currentUserId={currentUserId}
+                  canManageAll={canManage}
+                  onClose={() => setCommentsPopoverOpen(false)}
+                  triggerRef={commentsButtonRef}
+                />
+              )}
+            </div>
           </div>
-        <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-zinc-500 md:hidden">
-          <span
-            className={`rounded px-2 py-0.5 text-xs font-medium ${getTaskStatusBadgeClass(
+          <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-zinc-500 md:hidden">
+            <span
+              className={`rounded px-2 py-0.5 text-xs font-medium ${getTaskStatusBadgeClass(
+                task.status
+              )} ${selectedForDelete ? "opacity-90" : ""}`}
+            >
+              {getTaskStatusLabel(task.status)}
+            </span>
+            <span className={selectedForDelete ? "opacity-90" : ""}>
+              Start: {formatDateLabel(task.start_date, "No start date")}
+            </span>
+            <span className={selectedForDelete ? "opacity-90" : ""}>
+              Due: {formatDateLabel(task.due_date, "No due date")}
+            </span>
+            {savingId === task.id && <span>Saving...</span>}
+          </div>
+        </div>
+
+        <div className="flex w-full items-center gap-2.5">
+          <select
+            value={task.project_id || ""}
+            onChange={(e) => onProjectChange(task.id, e.target.value || null)}
+            onClick={(e) => e.stopPropagation()}
+            disabled={fieldsDisabled}
+            className={`cursor-pointer min-w-0 flex-1 appearance-none bg-transparent text-sm font-medium outline-none disabled:cursor-default ${
+              task.project_id ? "text-zinc-900" : "italic text-zinc-400"
+            } ${selectedForDelete ? "opacity-90" : ""}`}
+          >
+            <option value="">No workspace</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="hidden md:flex md:flex-col md:items-start md:gap-2">
+          <select
+            value={task.status ?? "todo"}
+            onChange={(e) => {
+              const value = e.target.value as TaskStatus;
+              onCommitUpdate(task.id, { status: value });
+            }}
+            onClick={(e) => e.stopPropagation()}
+            disabled={statusDisabled}
+            className={`appearance-none rounded-md border px-2.5 py-1 text-[13px] font-medium outline-none disabled:cursor-default cursor-pointer transition-all ${getTaskStatusBadgeClass(
               task.status
             )} ${selectedForDelete ? "opacity-90" : ""}`}
           >
-            {getTaskStatusLabel(task.status)}
-          </span>
-          <span className={selectedForDelete ? "opacity-90" : ""}>
-            Start: {formatDateLabel(task.start_date, "No start date")}
-          </span>
-          <span className={selectedForDelete ? "opacity-90" : ""}>
-            Due: {formatDateLabel(task.due_date, "No due date")}
-          </span>
-          {savingId === task.id && <span>Saving...</span>}
+            <option value="todo">To Do</option>
+            <option value="in_progress">In Progress</option>
+            <option value="blocked">Blocked</option>
+            <option value="done">Completed</option>
+          </select>
+          {savingId === task.id && <span className="text-xs text-zinc-500">Saving...</span>}
         </div>
-      </div>
 
-      <div className="flex w-full items-center gap-2.5">
-        <select
-          value={task.project_id || ""}
-          onChange={(e) => onProjectChange(task.id, e.target.value || null)}
-          disabled={fieldsDisabled}
-          className={`cursor-pointer min-w-0 flex-1 appearance-none bg-transparent text-sm font-medium outline-none disabled:cursor-default ${
-            task.project_id ? "text-zinc-900" : "italic text-zinc-400"
-          } ${selectedForDelete ? "opacity-90" : ""}`}
+        <div
+          className="hidden min-w-0 md:flex md:h-full md:items-center text-sm text-zinc-500"
+          onClick={(e) => e.stopPropagation()}
         >
-          <option value="">No workspace</option>
-          {projects.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="hidden md:flex md:flex-col md:items-start md:gap-2">
-        <select
-          value={task.status ?? "todo"}
-          onChange={(e) => {
-            const value = e.target.value as TaskStatus;
-            onCommitUpdate(task.id, { status: value });
-          }}
-          disabled={statusDisabled}
-          className={`appearance-none rounded-md border px-2.5 py-1 text-[13px] font-medium outline-none disabled:cursor-default cursor-pointer transition-all ${getTaskStatusBadgeClass(
-            task.status
-          )} ${selectedForDelete ? "opacity-90" : ""}`}
-        >
-          <option value="todo">To Do</option>
-          <option value="in_progress">In Progress</option>
-          <option value="blocked">Blocked</option>
-          <option value="done">Completed</option>
-        </select>
-        {savingId === task.id && <span className="text-xs text-zinc-500">Saving...</span>}
-      </div>
-
-      <div className="hidden min-w-0 md:flex md:h-full md:items-center text-sm text-zinc-500">
-        <DatePicker
-          disabled={!canManage}
-          value={task.start_date || ""}
-          variant="ghost"
-          className="-ml-0 h-auto px-0 py-0 text-sm font-normal text-zinc-600 hover:bg-transparent hover:text-zinc-900"
-          placeholder="Not set"
-          ghostPlaceholder
-          onChange={async (val) => {
-            await onCommitUpdate(task.id, { start_date: val || null });
-          }}
-        />
-      </div>
-
-      <div className="hidden min-w-0 md:flex md:h-full md:items-center">
-        <div className="flex items-center gap-2">
           <DatePicker
             disabled={!canManage}
-            value={task.due_date || ""}
-            danger={overdue}
+            value={task.start_date || ""}
             variant="ghost"
-            className="h-auto px-0 py-0 text-sm font-normal text-zinc-600 hover:bg-transparent hover:text-zinc-900"
+            className="-ml-0 h-auto px-0 py-0 text-sm font-normal text-zinc-600 hover:bg-transparent hover:text-zinc-900"
             placeholder="Not set"
             ghostPlaceholder
             onChange={async (val) => {
-              await onCommitUpdate(task.id, { due_date: val || null });
+              await onCommitUpdate(task.id, { start_date: val || null });
             }}
           />
         </div>
-      </div>
 
-      <div className="flex w-full items-center justify-end md:justify-center">
-        {canManage && (
-          <button
-            type="button"
-            onClick={() => onToggleDeleteSelection(task.id)}
-            className={`rounded-md p-1.5 transition-all outline-none ${
-              selectedForDelete
-                ? "text-red-600 bg-red-100 hover:bg-red-200"
-                : "text-zinc-400 opacity-40 hover:text-red-600 hover:bg-zinc-100 hover:opacity-100 group-hover:opacity-100"
-            }`}
-            title="Delete task"
-          >
-            <Trash2 className="cursor-pointer h-4 w-4" />
-          </button>
-        )}
-      </div>
+        <div className="hidden min-w-0 md:flex md:h-full md:items-center" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-2">
+            <DatePicker
+              disabled={!canManage}
+              value={task.due_date || ""}
+              danger={overdue}
+              variant="ghost"
+              className="h-auto px-0 py-0 text-sm font-normal text-zinc-600 hover:bg-transparent hover:text-zinc-900"
+              placeholder="Not set"
+              ghostPlaceholder
+              onChange={async (val) => {
+                await onCommitUpdate(task.id, { due_date: val || null });
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="flex w-full items-center justify-end md:justify-center">
+          {canManage && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleDeleteSelection(task.id);
+              }}
+              className={`rounded-md p-1.5 transition-all outline-none ${
+                selectedForDelete
+                  ? "text-red-600 bg-red-100 hover:bg-red-200"
+                  : "text-zinc-400 opacity-40 hover:text-red-600 hover:bg-zinc-100 hover:opacity-100 group-hover:opacity-100"
+              }`}
+              title="Delete task"
+            >
+              <Trash2 className="cursor-pointer h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {isExpanded && (
@@ -285,7 +351,6 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
     </div>
   );
 });
-
 function formatDateLabel(value: string | null, fallback: string) {
   if (!value) return fallback;
   return new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -715,14 +780,14 @@ const canEditStatusForUser = useMemo(
     <div className="flex w-full flex-col gap-4 pb-12">
       <div className="flex items-start justify-between gap-4">
         <div ref={headingRef} className="space-y-1">
-          <h1
+          {/* <h1
             className="text-2xl font-semibold tracking-tight text-zinc-900 truncate max-w-[640px]"
           >
             My Tasks
           </h1>
           <p className="text-sm text-zinc-500">
             Manage your assigned tasks and workspace allocations.
-          </p>
+          </p> */}
         </div>
       </div>
 
