@@ -21,6 +21,7 @@ type TaskCommentsProps = {
   orgId: string;
   currentUserId: string | null;
   canManageAll: boolean;
+  onClose?: () => void;
 };
 
 function getErrorMessage(error: unknown): string {
@@ -49,6 +50,7 @@ export function CommentsPanel({
   orgId,
   currentUserId,
   canManageAll,
+  onClose,
 }: TaskCommentsProps) {
   const [comments, setComments] = useState<CommentWithAuthor[]>([]);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -215,7 +217,26 @@ export function CommentsPanel({
   return (
      <div className="flex h-full flex-col">
         
-        <div className="flex h-full flex-col rounded-md border border-zinc-200 bg-white p-3">
+        <div className="relative flex h-full flex-col rounded-md border border-zinc-200 bg-white p-3">
+          {onClose && (
+              <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close comments"
+                  className="
+                      absolute
+                      right-3
+                      top-3
+                      rounded-md
+                      p-1
+                      text-zinc-400
+                      transition-colors
+                      hover:bg-zinc-100
+                      hover:text-zinc-700
+                  "
+              >
+              </button>
+          )}
 
         <h3 className="mb-2 text-[13px] font-medium text-zinc-500">
             Comments
