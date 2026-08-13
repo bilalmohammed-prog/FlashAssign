@@ -11,9 +11,11 @@ const declineInviteBodySchema = z.object({
 
 export async function POST(req: Request) {
   try {
-
-
-    
+    try {
+      await requireActionUser();
+    } catch (authErr) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const { token } = declineInviteBodySchema.parse(await req.json());
 

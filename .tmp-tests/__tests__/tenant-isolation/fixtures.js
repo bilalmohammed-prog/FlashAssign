@@ -32,23 +32,21 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createTenantIsolationFixture = createTenantIsolationFixture;
 exports.cleanupTenantIsolationFixture = cleanupTenantIsolationFixture;
 const dotenv = __importStar(require("dotenv"));
 const path = __importStar(require("path"));
-dotenv.config({ path: path.resolve(process.cwd(), ".env.test.local") });
-const strict_1 = __importDefault(require("node:assert/strict"));
+dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+dotenv.config({ path: path.resolve(process.cwd(), ".env.test.local"), override: true });
+const assert = __importStar(require("node:assert/strict"));
 const node_crypto_1 = require("node:crypto");
 const supabase_js_1 = require("@supabase/supabase-js");
 const createdUsers = [];
 const createdOrgIds = [];
 function getRequiredEnv(name) {
     const value = process.env[name];
-    strict_1.default.ok(value, `Missing required env var: ${name}`);
+    assert.ok(value, `Missing required env var: ${name}`);
     return value;
 }
 function buildAnonClient() {
@@ -65,16 +63,16 @@ async function createUserIdentity(admin, emailPrefix) {
         password,
         email_confirm: true,
     });
-    strict_1.default.ifError(createError);
-    strict_1.default.ok(created.user, "Failed to create auth user");
+    assert.ifError(createError);
+    assert.ok(created.user, "Failed to create auth user");
     createdUsers.push(created.user.id);
     const client = buildAnonClient();
     const { data: signInData, error: signInError } = await client.auth.signInWithPassword({
         email,
         password,
     });
-    strict_1.default.ifError(signInError);
-    strict_1.default.ok(signInData.user, "Failed to sign in test user");
+    assert.ifError(signInError);
+    assert.ok(signInData.user, "Failed to sign in test user");
     return { user: signInData.user, client, password };
 }
 async function createTenantIsolationFixture() {
@@ -96,9 +94,9 @@ async function createTenantIsolationFixture() {
             .select("*")
             .single(),
     ]);
-    strict_1.default.ifError(orgAResult.error);
-    strict_1.default.ifError(orgBResult.error);
-    strict_1.default.ok(orgAResult.data && orgBResult.data, "Failed to create org fixtures");
+    assert.ifError(orgAResult.error);
+    assert.ifError(orgBResult.error);
+    assert.ok(orgAResult.data && orgBResult.data, "Failed to create org fixtures");
     const orgA = orgAResult.data;
     const orgB = orgBResult.data;
     createdOrgIds.push(orgA.id, orgB.id);
@@ -108,7 +106,7 @@ async function createTenantIsolationFixture() {
         { id: userBOwner.user.id, active_organization_id: orgB.id, full_name: "Org B Owner" },
     ];
     const { error: profileError } = await admin.from("profiles").upsert(profileRows, { onConflict: "id" });
-    strict_1.default.ifError(profileError);
+    assert.ifError(profileError);
     const membershipRows = [
         { organization_id: orgA.id, user_id: userAOwner.user.id, role: "owner" },
         { organization_id: orgA.id, user_id: userAMember.user.id, role: "employee" },
@@ -116,7 +114,7 @@ async function createTenantIsolationFixture() {
         { organization_id: orgB.id, user_id: userBOwner.user.id, role: "owner" },
     ];
     const { error: memberError } = await admin.from("org_members").insert(membershipRows);
-    strict_1.default.ifError(memberError);
+    assert.ifError(memberError);
     const [projectAVisibleRes, projectAHiddenRes, projectBRes] = await Promise.all([
         admin
             .from("projects")
@@ -134,10 +132,10 @@ async function createTenantIsolationFixture() {
             .select("*")
             .single(),
     ]);
-    strict_1.default.ifError(projectAVisibleRes.error);
-    strict_1.default.ifError(projectAHiddenRes.error);
-    strict_1.default.ifError(projectBRes.error);
-    strict_1.default.ok(projectAVisibleRes.data && projectAHiddenRes.data && projectBRes.data);
+    assert.ifError(projectAVisibleRes.error);
+    assert.ifError(projectAHiddenRes.error);
+    assert.ifError(projectBRes.error);
+    assert.ok(projectAVisibleRes.data && projectAHiddenRes.data && projectBRes.data);
     const projectAVisible = projectAVisibleRes.data;
     const projectAHidden = projectAHiddenRes.data;
     const projectB = projectBRes.data;
@@ -149,13 +147,14 @@ async function createTenantIsolationFixture() {
             role: "member",
         },
     ]);
-    strict_1.default.ifError(projectMemberError);
+    assert.ifError(projectMemberError);
     const [taskAVisibleRes, taskAHiddenRes, taskBRes] = await Promise.all([
         admin
             .from("tasks")
             .insert({
             organization_id: orgA.id,
             project_id: projectAVisible.id,
+            created_by: userAOwner.user.id,
             title: "Task A Visible",
             status: "todo",
         })
@@ -166,6 +165,7 @@ async function createTenantIsolationFixture() {
             .insert({
             organization_id: orgA.id,
             project_id: projectAHidden.id,
+            created_by: userAOwner.user.id,
             title: "Task A Hidden",
             status: "todo",
         })
@@ -176,16 +176,17 @@ async function createTenantIsolationFixture() {
             .insert({
             organization_id: orgB.id,
             project_id: projectB.id,
+            created_by: userBOwner.user.id,
             title: "Task B",
             status: "todo",
         })
             .select("*")
             .single(),
     ]);
-    strict_1.default.ifError(taskAVisibleRes.error);
-    strict_1.default.ifError(taskAHiddenRes.error);
-    strict_1.default.ifError(taskBRes.error);
-    strict_1.default.ok(taskAVisibleRes.data && taskAHiddenRes.data && taskBRes.data);
+    assert.ifError(taskAVisibleRes.error);
+    assert.ifError(taskAHiddenRes.error);
+    assert.ifError(taskBRes.error);
+    assert.ok(taskAVisibleRes.data && taskAHiddenRes.data && taskBRes.data);
     const taskAVisible = taskAVisibleRes.data;
     const taskAHidden = taskAHiddenRes.data;
     const taskB = taskBRes.data;
@@ -211,9 +212,9 @@ async function createTenantIsolationFixture() {
             .select("*")
             .single(),
     ]);
-    strict_1.default.ifError(assignmentARes.error);
-    strict_1.default.ifError(assignmentBRes.error);
-    strict_1.default.ok(assignmentARes.data && assignmentBRes.data);
+    assert.ifError(assignmentARes.error);
+    assert.ifError(assignmentBRes.error);
+    assert.ok(assignmentARes.data && assignmentBRes.data);
     const messageBRes = await admin
         .from("messages")
         .insert({
@@ -224,8 +225,8 @@ async function createTenantIsolationFixture() {
     })
         .select("*")
         .single();
-    strict_1.default.ifError(messageBRes.error);
-    strict_1.default.ok(messageBRes.data);
+    assert.ifError(messageBRes.error);
+    assert.ok(messageBRes.data);
     return {
         admin,
         userAOwner: { user: userAOwner.user, client: userAOwner.client },

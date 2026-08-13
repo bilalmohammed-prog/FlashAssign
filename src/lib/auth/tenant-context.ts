@@ -209,7 +209,7 @@ export async function getTenantContext(
 }
 
 export async function requireTenantContext(
-  _req: Request,
+  req: Request,
   options?: { organizationId?: string | null }
 ): Promise<TenantContext> {
   const traceId = ++tenantContextTraceId;
@@ -218,7 +218,7 @@ export async function requireTenantContext(
   const authLabel = `[DB] auth/session #${traceId}`;
   console.time(totalLabel);
   console.time(clientLabel);
-  const supabase = await getSupabaseServer();
+  const supabase = await getSupabaseServer(req);
   console.timeEnd(clientLabel);
 
   console.time(authLabel);

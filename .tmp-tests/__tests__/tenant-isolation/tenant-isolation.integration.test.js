@@ -16,20 +16,39 @@ const fixtures_1 = require("./fixtures");
         const nextBin = node_path_1.default.join(process.cwd(), "node_modules", "next", "dist", "bin", "next");
         devServer = (0, node_child_process_1.spawn)(process.execPath, [nextBin, "dev", "--port", "4010"], {
             cwd: process.cwd(),
-            stdio: "ignore",
+            stdio: ["ignore", "pipe", "pipe"],
             shell: false,
+        });
+        devServer.stdout?.on("data", (data) => {
+            process.stdout.write(`[next] ${data}`);
+        });
+        devServer.stderr?.on("data", (data) => {
+            process.stderr.write(`[next:error] ${data}`);
         });
         const start = Date.now();
         while (Date.now() - start < 90000) {
             try {
-                await fetch(`${baseUrl}/api/projects`, { method: "GET" });
-                break;
+                const response = await fetch(`${baseUrl}/api/projects`, {
+                    method: "GET",
+                });
+                if (response.status < 500) {
+                    break;
+                }
             }
             catch {
-                await new Promise((resolve) => setTimeout(resolve, 1000));
+                // Server not ready yet
             }
+            await new Promise((resolve) => setTimeout(resolve, 1000));
         }
-        fixture = await (0, fixtures_1.createTenantIsolationFixture)();
+        console.log("ABOUT TO CREATE FIXTURE");
+        try {
+            fixture = await (0, fixtures_1.createTenantIsolationFixture)();
+            console.log("FIXTURE CREATED");
+        }
+        catch (error) {
+            console.error("FIXTURE CREATION FAILED:", error);
+            throw error;
+        }
     });
     (0, node_test_1.after)(async () => {
         await (0, fixtures_1.cleanupTenantIsolationFixture)();
@@ -38,6 +57,7 @@ const fixtures_1 = require("./fixtures");
         }
     });
     (0, node_test_1.test)("1) unauthenticated request to every API route returns 401", async () => {
+        console.log("TEST 1 START");
         const routes = [
             { method: "GET", path: "/api/assignments" },
             { method: "POST", path: "/api/assignments", body: { task_id: fixture.taskAVisible.id, user_id: fixture.userAMember.user.id } },
@@ -76,6 +96,10 @@ const fixtures_1 = require("./fixtures");
                 },
                 body: route.body ? JSON.stringify(route.body) : undefined,
             });
+            const responseBody = await response.text();
+            if (response.status !== 401) {
+                console.error(`FAILED ROUTE: ${route.method} ${route.path}`, `STATUS: ${response.status}`, `BODY: ${responseBody}`);
+            }
             strict_1.default.equal(response.status, 401, `Expected 401 for ${route.method} ${route.path}, got ${response.status}`);
         }
     });
@@ -116,6 +140,9 @@ const fixtures_1 = require("./fixtures");
                 body: JSON.stringify({ title: "Member edited owner task" }),
             }),
         ]);
+        console.log("delete project:", deleteProjectRes.status, await deleteProjectRes.clone().text());
+        console.log("remove member:", removeOrgMemberRes.status, await removeOrgMemberRes.clone().text());
+        console.log("update other task:", updateOtherTaskRes.status, await updateOtherTaskRes.clone().text());
         strict_1.default.equal(deleteProjectRes.status, 403, `Expected 403 for member delete project, got ${deleteProjectRes.status}`);
         strict_1.default.equal(removeOrgMemberRes.status, 403, `Expected 403 for member remove org member, got ${removeOrgMemberRes.status}`);
         strict_1.default.equal(updateOtherTaskRes.status, 403, `Expected 403 for member update other task, got ${updateOtherTaskRes.status}`);

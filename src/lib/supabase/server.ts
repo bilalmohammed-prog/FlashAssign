@@ -5,7 +5,7 @@ import type { Database } from "@/lib/types/database";
 
 let supabaseServerTraceId = 0;
 
-export async function getSupabaseServer() {
+export async function getSupabaseServer(request?: Request) {
   const traceId = ++supabaseServerTraceId;
   const clientLabel = `[Fetch] Supabase server client create #${traceId}`;
   const cookiesLabel = `[DB] auth/session cookies #${traceId}`;
@@ -13,6 +13,8 @@ export async function getSupabaseServer() {
   console.time(cookiesLabel);
   const cookieStore = await cookies();
   console.timeEnd(cookiesLabel);
+
+  const authorization = request?.headers.get("authorization") ?? undefined;
 
   const client = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,6 +46,15 @@ export async function getSupabaseServer() {
   });
       },
       },
+      ...(authorization
+        ? {
+            global: {
+              headers: {
+                Authorization: authorization,
+              },
+            },
+          }
+        : {}),
     }
   );
   console.timeEnd(clientLabel);

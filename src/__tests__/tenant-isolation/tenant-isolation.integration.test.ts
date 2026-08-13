@@ -17,21 +17,41 @@ describe("tenant isolation integration", () => {
     const nextBin = path.join(process.cwd(), "node_modules", "next", "dist", "bin", "next");
     devServer = spawn(process.execPath, [nextBin, "dev", "--port", "4010"], {
       cwd: process.cwd(),
-      stdio: "ignore",
+      stdio: ["ignore", "pipe", "pipe"],
       shell: false,
+    });
+    devServer.stdout?.on("data", (data) => {
+      process.stdout.write(`[next] ${data}`);
+    });
+
+    devServer.stderr?.on("data", (data) => {
+      process.stderr.write(`[next:error] ${data}`);
     });
 
     const start = Date.now();
     while (Date.now() - start < 90000) {
       try {
-        await fetch(`${baseUrl}/api/projects`, { method: "GET" });
-        break;
-      } catch {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-    }
+  const response = await fetch(`${baseUrl}/api/projects`, {
+    method: "GET",
+  });
 
-    fixture = await createTenantIsolationFixture();
+  if (response.status < 500) {
+    break;
+  }
+} catch {
+  // Server not ready yet
+}
+
+await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+console.log("ABOUT TO CREATE FIXTURE");
+    try {
+  fixture = await createTenantIsolationFixture();
+  console.log("FIXTURE CREATED");
+} catch (error) {
+  console.error("FIXTURE CREATION FAILED:", error);
+  throw error;
+}
   });
 
   after(async () => {
@@ -42,6 +62,7 @@ describe("tenant isolation integration", () => {
   });
 
   test("1) unauthenticated request to every API route returns 401", async () => {
+      console.log("TEST 1 START");
     const routes: Array<{
       method: "GET" | "POST" | "PATCH" | "DELETE";
       path: string;
@@ -78,20 +99,30 @@ describe("tenant isolation integration", () => {
     ];
 
     for (const route of routes) {
-      const response = await fetch(`${baseUrl}${route.path}`, {
-        method: route.method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: route.body ? JSON.stringify(route.body) : undefined,
-      });
+  const response = await fetch(`${baseUrl}${route.path}`, {
+    method: route.method,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: route.body ? JSON.stringify(route.body) : undefined,
+  });
 
-      assert.equal(
-        response.status,
-        401,
-        `Expected 401 for ${route.method} ${route.path}, got ${response.status}`
-      );
-    }
+  const responseBody = await response.text();
+
+if (response.status !== 401) {
+  console.error(
+    `FAILED ROUTE: ${route.method} ${route.path}`,
+    `STATUS: ${response.status}`,
+    `BODY: ${responseBody}`
+  );
+}
+
+assert.equal(
+  response.status,
+  401,
+  `Expected 401 for ${route.method} ${route.path}, got ${response.status}`
+);
+}
   });
 
   test("2) authenticated user from org A cannot read org B projects/tasks/assignments/messages", async () => {
@@ -140,6 +171,24 @@ describe("tenant isolation integration", () => {
           body: JSON.stringify({ title: "Member edited owner task" }),
         }),
       ]);
+
+    console.log(
+      "delete project:",
+      deleteProjectRes.status,
+      await deleteProjectRes.clone().text()
+    );
+
+    console.log(
+      "remove member:",
+      removeOrgMemberRes.status,
+      await removeOrgMemberRes.clone().text()
+    );
+
+    console.log(
+      "update other task:",
+      updateOtherTaskRes.status,
+      await updateOtherTaskRes.clone().text()
+    );
 
     assert.equal(
       deleteProjectRes.status,
