@@ -127,8 +127,18 @@ export async function DELETE(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const tenant = await requireTenantContext(req);
-    authorize("delete", "project", tenant);
+    let tenant;
+    try {
+      tenant = await requireTenantContext(req);
+    } catch (authErr) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    try {
+      authorize("delete", "project", tenant);
+    } catch (authErr) {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const { projectId } = projectIdParamsSchema.parse(await params);
 

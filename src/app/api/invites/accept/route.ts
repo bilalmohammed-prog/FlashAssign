@@ -12,7 +12,12 @@ const acceptInviteBodySchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const { user, userId } = await requireActionUser();
+    let user, userId;
+    try {
+      ({ user, userId } = await requireActionUser());
+    } catch (authErr) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const email = user.email?.toLowerCase().trim();
     if (!email) {
