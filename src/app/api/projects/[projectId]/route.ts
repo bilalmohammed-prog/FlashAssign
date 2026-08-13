@@ -9,7 +9,6 @@ import { getProjectById } from "@/services/resource/project.service";
 import { updateProject } from "@/services/project/project.service";
 import { listProjectMembers as listProjectMembersService } from "@/services/resource/projectMember.service";
 import { NextResponse } from "next/server"
-import { ForbiddenError } from "@/lib/api/errors";
 
 export async function PATCH(
   req: Request,
@@ -17,12 +16,7 @@ export async function PATCH(
 ) {
   try {
     const tenant = await requireTenantContext(req);
-
-try {
-  authorize("update", "project", tenant);
-} catch {
-  return fail(new ForbiddenError());
-}
+    authorize("update", "project", tenant);
 
     const { projectId } = projectIdParamsSchema.parse(await params);
     const body = projectUpdateSchema.parse(await req.json());
