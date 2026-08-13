@@ -5,7 +5,7 @@ dotenv.config({ path: path.resolve(process.cwd(), ".env.test.local") });
 
 
 
-import assert from "node:assert/strict";
+import * as assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import type { Database, Tables } from "../../lib/types/database";
@@ -174,6 +174,7 @@ export async function createTenantIsolationFixture(): Promise<TenantIsolationFix
       .insert({
         organization_id: orgA.id,
         project_id: projectAVisible.id,
+        created_by: userAOwner.user.id,
         title: "Task A Visible",
         status: "todo",
       })
@@ -184,6 +185,7 @@ export async function createTenantIsolationFixture(): Promise<TenantIsolationFix
       .insert({
         organization_id: orgA.id,
         project_id: projectAHidden.id,
+        created_by: userAOwner.user.id,
         title: "Task A Hidden",
         status: "todo",
       })
@@ -194,6 +196,7 @@ export async function createTenantIsolationFixture(): Promise<TenantIsolationFix
       .insert({
         organization_id: orgB.id,
         project_id: projectB.id,
+        created_by: userBOwner.user.id,
         title: "Task B",
         status: "todo",
       })
