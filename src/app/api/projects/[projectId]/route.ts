@@ -8,6 +8,7 @@ import { softDeleteProject } from "@/services/project/project.service";
 import { getProjectById } from "@/services/resource/project.service";
 import { updateProject } from "@/services/project/project.service";
 import { listProjectMembers as listProjectMembersService } from "@/services/resource/projectMember.service";
+import { NextResponse } from "next/server"
 
 export async function PATCH(
   req: Request,
@@ -131,13 +132,13 @@ export async function DELETE(
     try {
       tenant = await requireTenantContext(req);
     } catch (authErr) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     try {
       authorize("delete", "project", tenant);
     } catch (authErr) {
-      return Response.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { projectId } = projectIdParamsSchema.parse(await params);
