@@ -12,6 +12,7 @@ import {
   updateProjectMemberRole,
   listProjectMembers as listProjectMembersService,
 } from "@/services/resource/projectMember.service";
+import { ForbiddenError } from "@/lib/api/errors";
 
 export async function PATCH(
   req: Request,
@@ -47,7 +48,12 @@ export async function DELETE(
 ) {
   try {
     const tenant = await requireTenantContext(req);
-    authorize("update", "project", tenant);
+
+    try {
+      authorize("update", "project", tenant);
+    } catch {
+      return fail(new ForbiddenError());
+    }
 
     const { projectId, userId } = projectMemberParamsSchema.parse(await params);
 
