@@ -1,4 +1,6 @@
-import assert from "node:assert/strict";
+/// <reference types="node" />
+
+import { deepEqual, equal, ok } from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   APP_ROLES,
@@ -11,7 +13,7 @@ import {
 
 describe("RBAC permission matrix", () => {
   it("defines all five application roles", () => {
-    assert.deepEqual([...APP_ROLES], [
+    deepEqual([...APP_ROLES], [
       "owner",
       "admin",
       "manager",
@@ -22,42 +24,42 @@ describe("RBAC permission matrix", () => {
 
   for (const role of APP_ROLES) {
     it(`has explicit permissions for ${role}`, () => {
-      assert.ok(getRolePermissions(role).length > 0);
+      ok(getRolePermissions(role).length > 0);
     });
   }
 
   it("viewer cannot mutate data", () => {
-    assert.equal(can("viewer", "create", "project"), false);
-    assert.equal(can("viewer", "update", "task"), false);
-    assert.equal(can("viewer", "delete", "task"), false);
-    assert.equal(can("viewer", "manage_members", "organization"), false);
-    assert.equal(can("viewer", "create", "comment"), false);
+    equal(can("viewer", "create", "project"), false);
+    equal(can("viewer", "update", "task"), false);
+    equal(can("viewer", "delete", "task"), false);
+    equal(can("viewer", "manage_members", "organization"), false);
+    equal(can("viewer", "create", "comment"), false);
   });
 
   it("employee can update only assigned task status via scoped permission", () => {
-    assert.equal(can("employee", "update", "task"), false);
-    assert.equal(hasPermission("employee", "task:update_assigned"), true);
-    assert.equal(isStatusOnlyTaskUpdate({ status: "done" }), true);
-    assert.equal(isStatusOnlyTaskUpdate({ status: "done", title: "x" }), false);
+    equal(can("employee", "update", "task"), false);
+    equal(hasPermission("employee", "task:update_assigned"), true);
+    equal(isStatusOnlyTaskUpdate({ status: "done" }), true);
+    equal(isStatusOnlyTaskUpdate({ status: "done", title: "x" }), false);
   });
 
   it("manager cannot manage members", () => {
-    assert.equal(can("manager", "manage_members", "organization"), false);
-    assert.equal(can("manager", "create", "project"), true);
-    assert.equal(can("manager", "update", "project"), true);
-    assert.equal(can("manager", "delete", "task"), true);
+    equal(can("manager", "manage_members", "organization"), false);
+    equal(can("manager", "create", "project"), true);
+    equal(can("manager", "update", "project"), true);
+    equal(can("manager", "delete", "task"), true);
   });
 
   it("admin can manage members and mutate work", () => {
-    assert.equal(can("admin", "manage_members", "organization"), true);
-    assert.equal(can("admin", "update", "task"), true);
-    assert.equal(can("admin", "update", "project"), true);
+    equal(can("admin", "manage_members", "organization"), true);
+    equal(can("admin", "update", "task"), true);
+    equal(can("admin", "update", "project"), true);
   });
 
   it("owner has full task and member permissions", () => {
-    assert.equal(can("owner", "manage_members", "organization"), true);
-    assert.equal(can("owner", "delete", "project"), true);
-    assert.equal(can("owner", "assign", "task"), true);
+    equal(can("owner", "manage_members", "organization"), true);
+    equal(can("owner", "delete", "project"), true);
+    equal(can("owner", "assign", "task"), true);
   });
 });
 
@@ -73,7 +75,7 @@ describe("role-specific permission boundaries", () => {
 
   for (const { role, permission, allowed } of cases) {
     it(`${role} ${allowed ? "has" : "lacks"} ${permission}`, () => {
-      assert.equal(
+      equal(
         hasPermission(role, permission as Parameters<typeof hasPermission>[1]),
         allowed
       );
