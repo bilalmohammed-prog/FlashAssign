@@ -79,6 +79,7 @@ export function TaskDetailsPanel({
 
   const fieldsDisabled = !canManage;
   const statusDisabled = !canManage && !canEditStatus;
+  const dateDisabled = !canManage && !canEditStatus;
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-8">
@@ -189,7 +190,7 @@ export function TaskDetailsPanel({
               <div className="flex items-center gap-4">
                 <span className="w-28 shrink-0 text-sm text-zinc-500">Start date</span>
                 <DatePicker
-                  disabled={!canManage}
+                  disabled={dateDisabled}
                   value={task.start_date || ""}
                   variant="ghost"
                   className="-ml-0 h-auto px-0 py-0 text-sm font-normal text-zinc-700 hover:bg-transparent hover:text-zinc-900"
@@ -202,7 +203,7 @@ export function TaskDetailsPanel({
               <div className="flex items-center gap-4">
                 <span className="w-28 shrink-0 text-sm text-zinc-500">Due date</span>
                 <DatePicker
-                  disabled={!canManage}
+                  disabled={dateDisabled}
                   value={task.due_date || ""}
                   variant="ghost"
                   className="-ml-0 h-auto px-0 py-0 text-sm font-normal text-zinc-700 hover:bg-transparent hover:text-zinc-900"

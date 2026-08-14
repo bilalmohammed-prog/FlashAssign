@@ -704,25 +704,58 @@ const canEditStatusForEmployee = useMemo(
 
   const commitTaskUpdate = useCallback(
     (id: string, updates: TablesUpdate<"tasks">) => {
-      const task = tasks.find((entry) => entry.id === id);
-      
       const scopedUpdates = canManage
         ? updates
-        : canEditStatusForEmployee && updates.status !== undefined
-          ? { status: updates.status }
+        : canEditStatusForEmployee && (updates.status !== undefined || updates.start_date !== undefined || updates.due_date !== undefined)
+          ? {
+              ...(updates.status !== undefined ? { status: updates.status } : {}),
+              ...(updates.start_date !== undefined ? { start_date: updates.start_date } : {}),
+              ...(updates.due_date !== undefined ? { due_date: updates.due_date } : {}),
+            }
           : null;
 
       if (!scopedUpdates) return;
 
       const patch: TaskPatch = {
-        ...scopedUpdates,
-        status: scopedUpdates.status ?? undefined,
+        ...(scopedUpdates.status !== undefined ? { status: scopedUpdates.status ?? undefined } : {}),
+        ...(scopedUpdates.start_date !== undefined ? { start_date: scopedUpdates.start_date } : {}),
+        ...(scopedUpdates.due_date !== undefined ? { due_date: scopedUpdates.due_date } : {}),
+        ...(scopedUpdates.title !== undefined ? { title: scopedUpdates.title } : {}),
+        ...(scopedUpdates.description !== undefined ? { description: scopedUpdates.description } : {}),
+        ...(scopedUpdates.project_id !== undefined ? { project_id: scopedUpdates.project_id } : {}),
       };
 
       updateTaskInState(id, patch);
       void commitUpdate(id, scopedUpdates);
     },
     [canManage, commitUpdate, canEditStatusForEmployee, tasks, updateTaskInState, currentUserId, employeeId]
+  );
+
+  const handleDeleteTask = useCallback(
+    async (taskId: string) => {
+      const backupTasks = tasks;
+      const backupTotal = totalCount;
+      const backupActiveTaskId = activeTaskId;
+
+      setTasks((prev) => prev.filter((task) => task.id !== taskId));
+      setTotalCount((prev) => Math.max(0, prev - 1));
+      setSelectedTaskIds((prev) => prev.filter((id) => id !== taskId));
+      setDeleteMode(false);
+      if (activeTaskId === taskId) {
+        setActiveTaskId(null);
+      }
+
+      try {
+        await deleteTaskAction(taskId, orgId);
+        addToast(`Deleted 1 task`, "success");
+      } catch {
+        setTasks(backupTasks);
+        setTotalCount(backupTotal);
+        setActiveTaskId(backupActiveTaskId);
+        addToast("Failed to delete task", "error");
+      }
+    },
+    [addToast, activeTaskId, orgId, tasks, totalCount]
   );
 
   const handleProjectAssignment = useCallback(
@@ -1068,7 +1101,7 @@ const canEditStatusForEmployee = useMemo(
               onClose={() => setActiveTaskId(null)}
               onCommitUpdate={commitTaskUpdate}
               onProjectChange={handleProjectAssignment}
-              onRequestDelete={toggleTaskSelection}
+              onRequestDelete={handleDeleteTask}
             />
 )}
           <div ref={sentinelRef} className="h-4 w-full bg-transparent" />

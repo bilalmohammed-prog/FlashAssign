@@ -564,14 +564,43 @@ const canEditStatusForUser = useMemo(
       if (!scopedUpdates) return;
 
       const patch: TaskPatch = {
-        ...scopedUpdates,
-        status: scopedUpdates.status ?? undefined,
+        ...(scopedUpdates.status !== undefined ? { status: scopedUpdates.status ?? undefined } : {}),
+        ...(scopedUpdates.start_date !== undefined ? { start_date: scopedUpdates.start_date } : {}),
+        ...(scopedUpdates.due_date !== undefined ? { due_date: scopedUpdates.due_date } : {}),
+        ...(scopedUpdates.title !== undefined ? { title: scopedUpdates.title } : {}),
+        ...(scopedUpdates.description !== undefined ? { description: scopedUpdates.description } : {}),
+        ...(scopedUpdates.project_id !== undefined ? { project_id: scopedUpdates.project_id } : {}),
       };
 
       updateTaskInState(id, patch);
       void commitUpdate(id, scopedUpdates);
     },
     [canManage, commitUpdate, canEditStatusForUser, updateTaskInState]
+  );
+
+  const handleDeleteTask = useCallback(
+    async (taskId: string) => {
+      const backupTasks = tasks;
+      const backupTotal = totalCount;
+      const backupActiveTaskId = activeTaskId;
+
+      setTasks((prev) => prev.filter((task) => task.id !== taskId));
+      setTotalCount((prev) => Math.max(0, prev - 1));
+      if (activeTaskId === taskId) {
+        setActiveTaskId(null);
+      }
+
+      try {
+        await deleteTaskAction(taskId, orgId);
+        addToast("Deleted 1 task", "success");
+      } catch {
+        setTasks(backupTasks);
+        setTotalCount(backupTotal);
+        setActiveTaskId(backupActiveTaskId);
+        addToast("Failed to delete task", "error");
+      }
+    },
+    [activeTaskId, addToast, orgId, tasks, totalCount]
   );
 
   const handleProjectAssignment = useCallback(
@@ -1006,7 +1035,7 @@ const canEditStatusForUser = useMemo(
           onClose={() => setActiveTaskId(null)}
           onCommitUpdate={commitTaskUpdate}
           onProjectChange={handleProjectAssignment}
-          onRequestDelete={toggleTaskSelection}
+          onRequestDelete={handleDeleteTask}
         />
       )}
     </div>
