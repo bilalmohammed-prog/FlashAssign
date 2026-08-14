@@ -12,7 +12,8 @@ import {
   ArrowUpDown,
   Trash2,
   X,
-  ChevronRight,
+  ListSortDescending,
+  MessageSquareDashed,
 } from "lucide-react";
 import type { Enums, TablesUpdate } from "@/lib/types/database";
 import { updateTask } from "@/actions/task/update";
@@ -26,13 +27,13 @@ import { usePageHeader } from "@/components/layout/PageHeaderContext";
 import { Button } from "@/components/ui/button";
 import { AppModal } from "@/components/ui/app-modal";
 import { Input } from "@/components/ui/input";
-import { TaskDetailsPanels } from "@/components/tasks/TaskDetailsPanels";
 import { useToast } from "@/components/providers/toast";
 import type { AppRole } from "@/lib/auth/permissions";
 import { getWorkspaceCapabilities, canEditTask } from "@/lib/auth/ui-capabilities";
 import { supabase } from "@/lib/supabase/client";
-
 import { DatePicker } from "@/components/ui/date-picker";
+import { CommentsPopover } from "@/components/tasks/CommentsPopover";
+import { TaskDetailsPanel } from "@/components/tasks/TaskDetailsPanelNew";
 
 export type ProjectTaskRpc = {
   id: string;
@@ -72,8 +73,8 @@ export type ProjectWorkspaceInitialData = {
   userId: string;
   projectMembers: HumanResource[];
   tasks: ProjectTaskRpc[];
-  initialAssigneeFilter?: string; // Add this
-  initialStatusFilter?: string;   // Add this
+  initialAssigneeFilter?: string;
+  initialStatusFilter?: string;
 };
 
 const PAGE_SIZE = 10;
@@ -93,22 +94,16 @@ type TaskRowProps = {
   onCommitUpdate: (taskId: string, updates: TablesUpdate<"tasks">) => void;
   onAssign: (taskId: string, resourceId: string) => void;
   onToggleDeleteSelection: (taskId: string) => void;
-  isExpanded: boolean;
-  onToggleExpand: (taskId: string) => void;
+  onOpenDetail: (taskId: string) => void;
 };
 
 function isTaskOverdue(task: { due_date?: string | null; status?: string }): boolean {
   if (!task.due_date) return false;
+  if (task.status === 'completed' || task.status === 'done') return false;
   
-  // Adjust this condition based on how you track completion status
-  if (task.status === 'completed') return false;
-  
-  // Use a localized date comparison to avoid timezone issues 
-  // if your dates are stored as YYYY-MM-DD
   const dueDate = new Date(task.due_date);
   const now = new Date();
   
-  // Reset time to midnight for pure date comparison
   dueDate.setHours(0, 0, 0, 0);
   now.setHours(0, 0, 0, 0);
   
@@ -128,18 +123,79 @@ const TaskRow = memo(function TaskRow({
   onCommitUpdate,
   onAssign,
   onToggleDeleteSelection,
-  isExpanded,
-  onToggleExpand,
+  onOpenDetail,
 }: TaskRowProps) {
   const [titleValue, setTitleValue] = useState(task.title);
-  const [descriptionValue, setDescriptionValue] = useState(task.description ?? "");
   
   const fieldsDisabled = !canManage || deleteMode;
   const statusDisabled = deleteMode || (!canManage && !canEditStatus);
   const rowClassName = selectedForDelete
     ? "border-red-200 bg-red-50/70 hover:bg-red-50/80"
     : "border-zinc-100 bg-white hover:bg-zinc-100/60";
-const overdue = isTaskOverdue(task);
+  const overdue = isTaskOverdue(task);
+
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const titleClickTimeoutRef = useRef<number | null>(null);
+  const [descPopoverOpen, setDescPopoverOpen] = useState(false);
+  const [commentsPopoverOpen, setCommentsPopoverOpen] = useState(false);
+  const commentsButtonRef = useRef<HTMLButtonElement>(null);
+  const descPopoverRef = useRef<HTMLDivElement>(null);
+  const descEditorRef = useRef<HTMLDivElement>(null);
+
+  const startTitleEditing = useCallback(() => {
+    if (fieldsDisabled) return;
+
+    setIsEditingTitle(true);
+
+    requestAnimationFrame(() => {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    });
+  }, [fieldsDisabled]);
+
+  const cancelTitleEditing = useCallback(() => {
+    setTitleValue(task.title);
+    setIsEditingTitle(false);
+  }, [task.title]);
+
+  useEffect(() => {
+    return () => {
+      if (titleClickTimeoutRef.current !== null) {
+        window.clearTimeout(titleClickTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const descriptionDisabled = !canManage || deleteMode;
+
+  useEffect(() => {
+    if (!descPopoverOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+
+      if (!(target instanceof Node)) return;
+
+      if (descPopoverRef.current && !descPopoverRef.current.contains(target)) {
+        setDescPopoverOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+    };
+  }, [descPopoverOpen]);
+
+  useEffect(() => {
+    if (!descPopoverOpen || !descEditorRef.current) return;
+
+    const nextDescription = task.description ?? "";
+    descEditorRef.current.textContent = nextDescription;
+  }, [descPopoverOpen, task.description, task.id]);
+
   return (
     <div
       className={`task-row-wrapper group relative flex flex-col transition-colors ${rowClassName}`}
@@ -149,167 +205,242 @@ const overdue = isTaskOverdue(task);
       >
         <div className="flex w-full min-w-0 flex-col">
           <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => onToggleExpand(task.id)}
-              className="shrink-0 text-zinc-400 transition-transform duration-150 hover:text-zinc-700"
-              style={{ transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)" }}
-              aria-label={isExpanded ? "Collapse" : "Expand"}
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-            <input
-              value={titleValue}
-              onChange={(e) => setTitleValue(e.target.value)}
-              onBlur={(e) => {
-                if (e.target.value !== task.title) {
-                  onCommitUpdate(task.id, { title: e.target.value });
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") e.currentTarget.blur();
-              }}
-              disabled={fieldsDisabled}
-              className={`w-full truncate rounded px-1.5 py-0.5 text-[15px] font-medium outline-none transition-colors disabled:cursor-default
-                ${!fieldsDisabled
-                  ? "cursor-text border border-transparent hover:border-zinc-300 hover:bg-zinc-50 focus:border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500"
-                  : "border-transparent bg-transparent"
-                }
-                ${selectedForDelete
-                  ? "line-through text-red-950/80 opacity-90"
-                  : task.status === "done"
-                    ? "text-zinc-900"
+            {isEditingTitle ? (
+              <input
+                ref={titleInputRef}
+                value={titleValue}
+                onChange={(e) => setTitleValue(e.target.value)}
+                disabled={fieldsDisabled}
+                onBlur={() => {
+                  if (titleValue.trim() && titleValue !== task.title) {
+                    onCommitUpdate(task.id, {
+                      title: titleValue.trim(),
+                    });
+                  }
+                  setIsEditingTitle(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.currentTarget.blur();
+                  }
+                  if (e.key === "Escape") {
+                    cancelTitleEditing();
+                  }
+                }}
+                className="w-full min-w-0 rounded px-1.5 py-0.5 text-[15px] font-medium text-zinc-900 outline-none ring-2 ring-indigo-500"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  if (titleClickTimeoutRef.current !== null) {
+                    window.clearTimeout(titleClickTimeoutRef.current);
+                  }
+
+                  titleClickTimeoutRef.current = window.setTimeout(() => {
+                    onOpenDetail(task.id);
+                    titleClickTimeoutRef.current = null;
+                  }, 200);
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  if (titleClickTimeoutRef.current !== null) {
+                    window.clearTimeout(titleClickTimeoutRef.current);
+                    titleClickTimeoutRef.current = null;
+                  }
+                  startTitleEditing();
+                }}
+                title={task.title}
+                className={`min-w-0 max-w-sm shrink truncate rounded px-1.5 py-0.5 text-left text-[15px] font-medium outline-none transition-colors hover:bg-zinc-50 hover:underline ${
+                  selectedForDelete
+                    ? "line-through text-red-950/80 opacity-90"
                     : "text-zinc-900"
-                }
-              `}
+                }`}
+              >
+                {titleValue}
+              </button>
+            )}
+
+            {task.description && (
+              <div ref={descPopoverRef} className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDescPopoverOpen((prev) => !prev);
+                  }}
+                  className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+                  title="View description"
+                >
+                  <ListSortDescending className="h-4 w-4" strokeWidth={2} />
+                </button>
+
+                {descPopoverOpen && (
+                  <div
+                    ref={descEditorRef}
+                    role={canManage ? "textbox" : undefined}
+                    aria-multiline={canManage ? "true" : undefined}
+                    contentEditable={canManage ? !descriptionDisabled : undefined}
+                    suppressContentEditableWarning
+                    onClick={(e) => e.stopPropagation()}
+                    onBlur={(e) => {
+                      if (!canManage) return;
+
+                      const currentDescription = e.currentTarget.textContent ?? "";
+                      const nextDescription = currentDescription.trim();
+
+                      if (currentDescription !== (task.description ?? "")) {
+                        onCommitUpdate(task.id, {
+                          description: nextDescription || null,
+                        });
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (!canManage) return;
+
+                      if (e.key === "Escape") {
+                        e.currentTarget.textContent = task.description ?? "";
+                        setDescPopoverOpen(false);
+                      }
+
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        e.currentTarget.blur();
+                      }
+                    }}
+                    className="absolute left-0 top-6 z-50 max-h-80 min-h-32 w-[400px] overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-zinc-200 bg-white px-3 py-3 text-sm leading-6 text-zinc-700 shadow-lg outline-none focus:border-indigo-300"
+                  />
+                )}
+              </div>
+            )}
+
+            <div className="relative shrink-0">
+              <button
+                ref={commentsButtonRef}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCommentsPopoverOpen((prev) => !prev);
+                }}
+                className="rounded p-0.5 text-zinc-400 transition-colors hover:text-zinc-600"
+                title="Comments"
+              >
+                <MessageSquareDashed className="h-[13px] w-4 text-zinc-500 hover:text-zinc-600" />
+              </button>
+
+              {commentsPopoverOpen && (
+                <CommentsPopover
+                  taskId={task.id}
+                  orgId={orgId}
+                  currentUserId={currentUserId}
+                  canManageAll={canManage}
+                  onClose={() => setCommentsPopoverOpen(false)}
+                  triggerRef={commentsButtonRef}
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-zinc-500 md:hidden">
+            <span
+              className={`rounded px-2 py-0.5 text-xs font-medium ${getTaskStatusBadgeClass(task.status)} ${selectedForDelete ? "opacity-90" : ""}`}
+            >
+              {getTaskStatusLabel(task.status)}
+            </span>
+            <span className={selectedForDelete ? "opacity-90" : ""}>
+              Start: {formatDateLabel(task.start_date, "No start date")}
+            </span>
+            <span className={selectedForDelete ? "opacity-90" : ""}>
+              Due: {formatDateLabel(task.due_date, "No due date")}
+            </span>
+            {savingId === task.id && <span>Saving...</span>}
+          </div>
+        </div>
+
+        <div className="flex w-full items-center gap-2.5">
+          <select
+            value={task.assignee_id || ""}
+            onChange={(e) => onAssign(task.id, e.target.value)}
+            disabled={fieldsDisabled}
+            className={`min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-sm font-medium outline-none disabled:cursor-default ${
+              task.assignee_id ? "text-zinc-900" : "italic text-zinc-400"
+            } ${selectedForDelete ? "opacity-90" : ""}`}
+          >
+            <option value="">Unassigned</option>
+            {projectMembers.map((employee) => (
+              <option key={employee.user_id} value={employee.user_id}>
+                {employee.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="hidden md:flex md:flex-col md:items-start md:gap-2">
+          <select
+            value={task.status}
+            onChange={(e) => {
+              const value = e.target.value as TaskStatus;
+              onCommitUpdate(task.id, { status: value });
+            }}
+            disabled={statusDisabled}
+            className={`cursor-pointer appearance-none rounded-md border px-2.5 py-1 text-[13px] font-medium outline-none transition-all disabled:cursor-default ${getTaskStatusBadgeClass(
+              task.status
+            )} ${selectedForDelete ? "opacity-90" : ""}`}
+          >
+            <option value="todo">To Do</option>
+            <option value="in_progress">In Progress</option>
+            <option value="blocked">Blocked</option>
+            <option value="done">Completed</option>
+          </select>
+          {savingId === task.id && <span className="text-xs text-zinc-500">Saving...</span>}
+        </div>
+
+        <div className="hidden min-w-0 text-sm text-zinc-500 md:flex md:h-full md:items-center">
+          <DatePicker
+            value={task.start_date || ""}
+            variant="ghost"
+            className="-ml-0 h-auto px-0 py-0 text-sm font-normal text-zinc-600 hover:bg-transparent hover:text-zinc-900"
+            placeholder="Set date"
+            ghostPlaceholder
+            onChange={async (val) => {
+              await onCommitUpdate(task.id, { start_date: val || null });
+            }}
+          />
+        </div>
+
+        <div className="hidden min-w-0 md:flex md:h-full md:items-center">
+          <div className="flex items-center gap-2">
+            <DatePicker
+              value={task.due_date || ""}
+              danger={overdue}
+              variant="ghost"
+              className="h-auto px-0 py-0 text-sm font-normal text-zinc-600 hover:bg-transparent hover:text-zinc-900"
+              placeholder="Set date"
+              ghostPlaceholder
+              onChange={async (val) => {
+                await onCommitUpdate(task.id, { due_date: val || null });
+              }}
             />
           </div>
-        <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-zinc-500 md:hidden">
-          <span
-            className={`rounded px-2 py-0.5 text-xs font-medium ${getTaskStatusBadgeClass(task.status)} ${selectedForDelete ? "opacity-90" : ""}`}
-          >
-            {getTaskStatusLabel(task.status)}
-          </span>
-          <span className={selectedForDelete ? "opacity-90" : ""}>
-            Start: {formatDateLabel(task.start_date, "No start date")}
-          </span>
-          <span className={selectedForDelete ? "opacity-90" : ""}>
-            Due: {formatDateLabel(task.due_date, "No due date")}
-          </span>
-          {savingId === task.id && <span>Saving...</span>}
+        </div>
+
+        <div className="flex w-full items-center justify-end md:justify-center">
+          {canManage && (
+            <button
+              type="button"
+              onClick={() => onToggleDeleteSelection(task.id)}
+              className={`rounded-md p-1.5 outline-none transition-all ${
+                selectedForDelete
+                  ? "bg-red-100 text-red-600 hover:bg-red-200"
+                  : "text-zinc-400 opacity-40 hover:bg-zinc-100 hover:text-red-600 hover:opacity-100 group-hover:opacity-100"
+              }`}
+              title="Delete task"
+            >
+              <Trash2 className="h-4 w-4 cursor-pointer" />
+            </button>
+          )}
         </div>
       </div>
-
-      <div className="flex w-full items-center gap-2.5">
-        <select
-          value={task.assignee_id || ""}
-          onChange={(e) => onAssign(task.id, e.target.value)}
-          disabled={fieldsDisabled}
-          className={`cursor-pointer min-w-0 flex-1 appearance-none bg-transparent text-sm font-medium outline-none disabled:cursor-default ${
-  task.assignee_id
-    ? "text-zinc-900"
-    : "italic text-zinc-400"
-} ${selectedForDelete ? "opacity-90" : ""}`}
-        >
-          <option value="">Unassigned</option>
-          {projectMembers.map((employee) => (
-            <option key={employee.user_id} value={employee.user_id}>
-              {employee.name}
-            </option>
-          ))}
-        </select>
-        
-      </div>
-
-      <div className="hidden md:flex md:flex-col md:items-start md:gap-2">
-        <select
-          value={task.status ?? "todo"}
-          onChange={(e) => {
-            const value = e.target.value as TaskStatus;
-            onCommitUpdate(task.id, { status: value });
-          }}
-          disabled={statusDisabled}
-          className={`appearance-none rounded-md border px-2.5 py-1 text-[13px] font-medium outline-none disabled:cursor-default cursor-pointer transition-all ${getTaskStatusBadgeClass(task.status)} ${selectedForDelete ? "opacity-90" : ""}`}
-        >
-          <option value="todo">To Do</option>
-          <option value="in_progress">In Progress</option>
-          <option value="blocked">Blocked</option>
-          <option value="done">Completed</option>
-        </select>
-        {savingId === task.id && <span className="text-xs text-zinc-500">Saving...</span>}
-      </div>
-
-      {/* Start Date */}
-<div className="hidden min-w-0 md:flex md:h-full md:items-center text-sm text-zinc-500">
-  <DatePicker
-    value={task.start_date || ""}
-    variant="ghost"
-    className="-ml-0 h-auto px-0 py-0 text-sm font-normal text-zinc-600 hover:bg-transparent hover:text-zinc-900"
-    placeholder="Set date"
-    ghostPlaceholder
-    onChange={async (val) => {
-      // Assuming onCommitUpdate handles the async/error state internally 
-      // or you can port your try/catch logic here for optimistic UI
-      await onCommitUpdate(task.id, { start_date: val || null });
-    }}
-  />
-</div>
-
-{/* Due Date */}
-<div className="hidden min-w-0 md:flex md:h-full md:items-center">
-  <div className="flex items-center gap-2">
-    <DatePicker
-      value={task.due_date || ""}
-      danger={overdue} // Ensure 'overdue' is calculated via task dates
-      variant="ghost"
-      className="h-auto px-0 py-0 text-sm font-normal text-zinc-600 hover:bg-transparent hover:text-zinc-900"
-      placeholder="Set date"
-      ghostPlaceholder
-      onChange={async (val) => {
-        await onCommitUpdate(task.id, { due_date: val || null });
-      }}
-    />
-
-    {/* {overdue && (
-      <span className="inline-flex items-center gap-1 rounded-md border border-red-100 bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-600">
-        <AlertCircle className="h-3 w-3 shrink-0" />
-        Overdue
-      </span>
-    )} */}
-  </div>
-</div>
-
-      <div className="flex w-full items-center justify-end md:justify-center">
-        {canManage && (
-          <button
-            type="button"
-            onClick={() => onToggleDeleteSelection(task.id)}
-            className={`rounded-md p-1.5 transition-all outline-none ${
-              selectedForDelete
-                ? "text-red-600 bg-red-100 hover:bg-red-200"
-                : "text-zinc-400 opacity-40 hover:text-red-600 hover:bg-zinc-100 hover:opacity-100 group-hover:opacity-100"
-            }`}
-            title="Delete task"
-          >
-            <Trash2 className="cursor-pointer h-4 w-4" />
-          </button>
-        )}
-      </div>
-      </div>
-
-      {isExpanded && (
-        <TaskDetailsPanels
-          taskId={task.id}
-          orgId={orgId}
-          currentUserId={currentUserId}
-          descriptionValue={descriptionValue}
-          persistedDescription={task.description}
-          canEditDescription={!fieldsDisabled}
-          canManageComments={canManage}
-          onDescriptionChange={setDescriptionValue}
-          onCommitUpdate={onCommitUpdate}
-        />
-      )}
     </div>
   );
 });
@@ -334,6 +465,8 @@ function getTaskStatusBadgeClass(status: string | null) {
 }
 
 export default function ProjectWorkspaceClient({ initialData }: { initialData: ProjectWorkspaceInitialData }) {
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+
   const { addToast } = useToast();
   const { setPageHeader } = usePageHeader();
   
@@ -349,7 +482,6 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
   // Pagination & Server State
   const [tasks, setTasks] = useState<ProjectTaskRpc[]>(initialData.tasks);
   const [totalCount, setTotalCount] = useState(initialData.tasks[0]?.total_count ?? 0);
-  const [pageOffset, setPageOffset] = useState(0);
   const [hasMore, setHasMore] = useState(initialData.tasks.length < (initialData.tasks[0]?.total_count ?? 0));
   const [loadingMore, setLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(false);
@@ -357,11 +489,11 @@ export default function ProjectWorkspaceClient({ initialData }: { initialData: P
   // Filter & Sort State
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | TaskStatus>(
-  (initialData.initialStatusFilter as "all" | TaskStatus) || "all"
-);
-const [assigneeFilter, setAssigneeFilter] = useState<string>(
-  initialData.initialAssigneeFilter || "all"
-);
+    (initialData.initialStatusFilter as "all" | TaskStatus) || "all"
+  );
+  const [assigneeFilter, setAssigneeFilter] = useState<string>(
+    initialData.initialAssigneeFilter || "all"
+  );
   const [startDateFilter, setStartDateFilter] = useState<string>("");
   const [dueDateFilter, setDueDateFilter] = useState<string>("");
   const [sortBy, setSortBy] = useState<"title" | "status" | "start_date" | "due_date">("title");
@@ -384,6 +516,7 @@ const [assigneeFilter, setAssigneeFilter] = useState<string>(
   const [savingMembers, setSavingMembers] = useState(false);
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+  
   const hasMoreRef = useRef(hasMore);
   const initialLoadingRef = useRef(initialLoading);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -394,142 +527,104 @@ const [assigneeFilter, setAssigneeFilter] = useState<string>(
 
   const headingRef = useRef<HTMLDivElement>(null);
   const [headingGone, setHeadingGone] = useState(false);
-  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
-  const toggleExpand = useCallback((taskId: string) => {
-    setExpandedTaskId((prev) => (prev === taskId ? null : taskId));
-  }, []);
+
+  const activeTask = useMemo(
+    () => tasks.find((task) => task.id === activeTaskId) ?? null,
+    [tasks, activeTaskId]
+  );
+
   useEffect(() => { addToastRef.current = addToast; }, [addToast]);
-useEffect(() => {
-  const el = headingRef.current;
-  if (!el) return;
-  const obs = new IntersectionObserver(
-    ([entry]) => setHeadingGone(!entry.isIntersecting),
-    { threshold: 0 }
-  );
-  obs.observe(el);
-  return () => obs.disconnect();
-}, []);
-// Fix: initialize to actual loaded count
-const offsetRef = useRef(initialData.tasks.length);
-  // Core API Fetching Method mapped to RPC
+
+  useEffect(() => {
+    const el = headingRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => setHeadingGone(!entry.isIntersecting),
+      { threshold: 0 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const offsetRef = useRef(initialData.tasks.length);
+
   const fetchTasks = useCallback(async (offset: number, append = false) => {
-  if (append && loadingMoreRef.current) return;
+    if (append && loadingMoreRef.current) return;
 
     loadingMoreRef.current = true;
     setLoadingMore(true);
 
-  if (!append) {
-    initialLoadingRef.current = true;
-    setInitialLoading(true);
+    if (!append) {
+      initialLoadingRef.current = true;
+      setInitialLoading(true);
+      offsetRef.current = 0;
+    }
+
+    try {
+      const { data, error } = await supabase.rpc("list_project_tasks_with_meta", {
+        org_uuid: orgId,
+        project_uuid: projectId,
+        page_size: PAGE_SIZE,
+        page_offset: offset,
+        search_query: searchQuery || undefined,
+        status_filter: statusFilter !== "all" ? statusFilter : undefined,
+        assignee_filter: assigneeFilter !== "all" && assigneeFilter !== "unassigned" ? assigneeFilter : undefined,
+        unassigned_only: assigneeFilter === "unassigned",
+        start_date_from: startDateFilter || undefined,
+        due_date_to: dueDateFilter || undefined,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+      });
+
+      if (error) throw error;
+
+      const fetchedTasks = data ?? [];
+      const count = fetchedTasks[0]?.total_count ?? 0;
+      const newOffset = offset + fetchedTasks.length;
+
+      offsetRef.current = newOffset;
+      hasMoreRef.current = newOffset < count;
+
+      setTasks((prev) => (append ? [...prev, ...fetchedTasks] : fetchedTasks));
+      setTotalCount(count);
+      setHasMore(newOffset < count);
+    } catch (err) {
+      console.error(err);
+      addToastRef.current("Failed to load workspace tasks", "error");
+    } finally {
+      initialLoadingRef.current = false;
+      setInitialLoading(false);
+      setLoadingMore(false);
+      loadingMoreRef.current = false;
+    }
+  }, [orgId, projectId, searchQuery, statusFilter, assigneeFilter, startDateFilter, dueDateFilter, sortBy, sortOrder]);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return; 
+    }
     offsetRef.current = 0;
-  } else {
-    loadingMoreRef.current = true;
-    setLoadingMore(true);
-  }
+    void fetchTasks(0, false);
+  }, [fetchTasks]);
 
-  try {
-    
-    const { data, error } = await supabase.rpc("list_project_tasks_with_meta", {
-      org_uuid: orgId,
-      project_uuid: projectId,
-      page_size: PAGE_SIZE,
-      page_offset: offset,
-      search_query: searchQuery || undefined,
-      status_filter: statusFilter !== "all" ? statusFilter : undefined,
-      assignee_filter: assigneeFilter !== "all" && assigneeFilter !== "unassigned" ? assigneeFilter : undefined,
-      unassigned_only: assigneeFilter === "unassigned",
-      start_date_from: startDateFilter || undefined,
-      due_date_to: dueDateFilter || undefined,
-      sort_by: sortBy,
-      sort_order: sortOrder,
-    });
-    if (data) {
-  console.log({
-    requested: {
-      page_size: PAGE_SIZE,
-      page_offset: offset,
-    },
-    returned: data.length,
-    total: data[0]?.total_count,
-  });
-}
-console.table(
-  (data ?? []).map((t, i) => ({
-    i,
-    id: t.id,
-    title: t.title,
-  }))
-);
-console.log({
-  page_size: PAGE_SIZE,
-  page_offset: offset,
-});
-console.log("RPC returned", {
-  error,
-  rows: data?.length,
-});
-    if (error) throw error;
-
-    const fetchedTasks = data ?? [];
-    const count = fetchedTasks[0]?.total_count ?? 0;
-    const newOffset = offset + fetchedTasks.length;
-
-    offsetRef.current = newOffset;
-    hasMoreRef.current = newOffset < count;
-
-    setTasks((prev) => (append ? [...prev, ...fetchedTasks] : fetchedTasks));
-    setTotalCount(count);
-    setHasMore(newOffset < count);
-  } catch (err) {
-    console.error(err);
-    addToastRef.current("Failed to load workspace tasks", "error");
-  } finally {
-    initialLoadingRef.current = false;
-    setInitialLoading(false);
-    setLoadingMore(false);
-    loadingMoreRef.current = false;
-  }
-// addToast removed — use addToastRef.current inside instead
-}, [orgId, projectId, searchQuery, statusFilter, assigneeFilter, startDateFilter, dueDateFilter, sortBy, sortOrder]);
-
-  // Handle updates to server queries across filters
   useEffect(() => {
-  if (isFirstRender.current) {
-    isFirstRender.current = false;
-    return; // trust SSR data on mount
-  }
-  offsetRef.current = 0;
-  void fetchTasks(0, false);
-}, [fetchTasks]);
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore || loadingMore || initialLoading) return;
 
-  // Infinite Scroll IntersectionObserver hook
-  useEffect(() => {
-  const sentinel = sentinelRef.current;
-  // Effect won't even run while loading — no observer created
-  if (!sentinel || !hasMore || loadingMore || initialLoading) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry.isIntersecting) return;
+        observer.unobserve(entry.target);
+        void fetchTasks(offsetRef.current, true);
+      },
+      { rootMargin: "200px" }
+    );
 
-  const observer = new IntersectionObserver(
-    (entries) => {
-      const entry = entries[0];
-        console.log("observer", {
-    isIntersecting: entry.isIntersecting,
-    offset: offsetRef.current,
-    hasMore: hasMoreRef.current,
-    loading: loadingMoreRef.current,
-  });
-      if (!entry.isIntersecting) return;
-
-observer.unobserve(entry.target);
-
-void fetchTasks(offsetRef.current, true);
-    },
-    { rootMargin: "200px" }
-  );
-
-  observer.observe(sentinel);
-  return () => observer.disconnect();
-  
-}, [hasMore, loadingMore, initialLoading, fetchTasks]);
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, initialLoading, fetchTasks]);
 
   const fetchOrgMembers = useCallback(async () => {
     if (orgMembersCacheRef.current?.orgId === orgId) {
@@ -631,7 +726,7 @@ void fetchTasks(offsetRef.current, true);
 
       const patch: TaskPatch = {
         ...scopedUpdates,
-        status: scopedUpdates.status ?? undefined,
+        status: scopedUpdates.status ?? task?.status as TaskStatus,
       };
 
       updateTaskInState(id, patch);
@@ -652,6 +747,33 @@ void fetchTasks(offsetRef.current, true);
       return next;
     });
   }, []);
+
+  const handleDeleteTask = useCallback(
+    async (taskId: string) => {
+      const backupTasks = tasks;
+      const backupTotal = totalCount;
+      const backupActiveTaskId = activeTaskId;
+
+      setTasks((prev) => prev.filter((task) => task.id !== taskId));
+      setTotalCount((prev) => Math.max(0, prev - 1));
+      setSelectedTaskIds((prev) => prev.filter((id) => id !== taskId));
+      setDeleteMode(false);
+      if (activeTaskId === taskId) {
+        setActiveTaskId(null);
+      }
+
+      try {
+        await deleteTaskAction(taskId, orgId);
+        addToast(`Deleted 1 task`, "success");
+      } catch {
+        setTasks(backupTasks);
+        setTotalCount(backupTotal);
+        setActiveTaskId(backupActiveTaskId);
+        addToast("Failed to delete task", "error");
+      }
+    },
+    [addToast, activeTaskId, orgId, tasks, totalCount]
+  );
 
   const handleBulkDelete = useCallback(async () => {
     if (selectedTaskIds.length === 0) return;
@@ -730,7 +852,7 @@ void fetchTasks(offsetRef.current, true);
   }
 
   const handleTaskAssignment = useCallback(
-    async (taskId: string, resourceId: string) => {
+    async (taskId: string, resourceId: string | null) => {
       try {
         await assignTaskToResource(taskId, resourceId || null);
         const employee = projectMembers.find((member) => member.user_id === resourceId);
@@ -773,7 +895,6 @@ void fetchTasks(offsetRef.current, true);
       await Promise.all(selectedMembersToRemove.map((userId) => removeProjectMember(projectId, userId)));
       setProjectMembers((prev) => prev.filter((member) => !selectedMembersToRemove.includes(member.user_id)));
 
-      // ── Clear assignee on any tasks that belonged to removed members ──
       setTasks((prev) =>
         prev.map((task) =>
           selectedMembersToRemove.includes(task.assignee_id ?? "")
@@ -792,8 +913,6 @@ void fetchTasks(offsetRef.current, true);
       setSavingMembers(false);
     }
   }
-
-  
 
   const tasksToolbar = (
     <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -866,16 +985,13 @@ void fetchTasks(offsetRef.current, true);
   );
 
   return (
-    
     <div className="flex w-full flex-col gap-4 pb-12">
-      {/* ── Page heading ── */}
       <div className="flex items-start justify-between gap-4">
         <div ref={headingRef} className="space-y-1">
           <h1
             className="text-2xl font-semibold tracking-tight text-zinc-900 truncate max-w-[640px]"
             title={projectName}
           >
-            
             {projectName}
           </h1>
           <p className="text-sm text-zinc-500">
@@ -912,6 +1028,7 @@ void fetchTasks(offsetRef.current, true);
           </div>
         )}
       </div>
+
       {deleteMode && selectedTaskIds.length > 0 && (
         <div className="fixed top-4 left-1/2 z-[100] flex w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-white shadow-xl animate-in fade-in slide-in-from-top-4 duration-200">
           <div className="flex items-center gap-2 text-sm font-medium">
@@ -944,14 +1061,14 @@ void fetchTasks(offsetRef.current, true);
       <div className="flex flex-col">
         <div className={`sticky top-0 z-30 border border-b-0 border-zinc-200 bg-white transition-[border-radius] duration-150 ${headingGone ? "rounded-none" : "rounded-t-lg"}`}>
           {headingGone && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute top-0 left-0 right-0 h-12 -translate-y-full"
-          style={{
-            background: "linear-gradient(to top, rgba(249,250,251,0.95) 0%, transparent 100%)",
-          }}
-        />
-      )}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute top-0 left-0 right-0 h-12 -translate-y-full"
+              style={{
+                background: "linear-gradient(to top, rgba(249,250,251,0.95) 0%, transparent 100%)",
+              }}
+            />
+          )}
           <div className="flex items-center justify-between gap-4 rounded-t-lg border-b border-zinc-300 bg-zinc-200/80 px-4 py-3 overflow-hidden">
             <div className="flex-1">{tasksToolbar}</div>
           </div>
@@ -969,7 +1086,6 @@ void fetchTasks(offsetRef.current, true);
           <div
             className={`hidden items-center gap-4 border-b border-zinc-200 bg-zinc-200/80 px-6 py-3 text-[13px] font-medium uppercase tracking-wider text-zinc-500 md:grid ${desktopTasksTableGrid}`}
           >
-            
             <div
               onClick={() => handleSort("title")}
               className="flex cursor-pointer select-none items-center gap-1 hover:text-zinc-800"
@@ -977,9 +1093,7 @@ void fetchTasks(offsetRef.current, true);
               Title {SortIcon("title")}
             </div>
             <div className="whitespace-nowrap">Assignee</div>
-            <div className="whitespace-nowrap">
-              Status
-            </div>
+            <div className="whitespace-nowrap">Status</div>
             <div
               onClick={() => handleSort("start_date")}
               className="flex cursor-pointer select-none items-center gap-1 hover:text-zinc-800"
@@ -1041,16 +1155,32 @@ void fetchTasks(offsetRef.current, true);
                 onCommitUpdate={commitTaskUpdate}
                 onAssign={handleTaskAssignment}
                 onToggleDeleteSelection={toggleTaskSelection}
-                isExpanded={expandedTaskId === task.id}
-                onToggleExpand={toggleExpand}
+                onOpenDetail={setActiveTaskId}
               />
             ))}
           </div>
 
-          {/* Sentinel Element for Intersection Observer */}
+          {activeTask && (
+            <TaskDetailsPanel
+              task={activeTask}
+              orgId={orgId}
+              currentUserId={userId}
+              canManage={canManage}
+              canEditStatus={canEditTask(role, {
+                userId,
+                assigneeId: activeTask.assignee_id,
+              })}
+              projectMembers={projectMembers}
+              savingId={savingId}
+              onClose={() => setActiveTaskId(null)}
+              onCommitUpdate={commitTaskUpdate}
+              onAssign={handleTaskAssignment}
+              onRequestDelete={handleDeleteTask}
+            />
+          )}
+
           <div ref={sentinelRef} className="h-4 w-full bg-transparent" />
 
-          {/* Loading Indicator for Lazy Pages */}
           {loadingMore && (
             <div className="flex items-center justify-center border-t border-zinc-100 bg-zinc-50/50 py-4 text-xs font-medium text-zinc-500">
               <span className="animate-pulse">Loading additional tasks...</span>
@@ -1150,120 +1280,118 @@ void fetchTasks(offsetRef.current, true);
         </AppModal>
       )}
 
-      {/* --- Refactored Add Members Modal --- */}
-{showAddMembers && (
-  <AppModal
-    title="Add Project Members"
-    description="Select organization members to grant them access to this project."
-    onClose={() => setShowAddMembers(false)}
-    widthClassName="w-[480px]"
-    footer={
-      <div className="flex w-full justify-end gap-2">
-        <Button variant="outline" onClick={() => setShowAddMembers(false)}>Cancel</Button>
-        <Button
-          disabled={selectedMembersToAdd.length === 0 || savingMembers}
-          onClick={() => void handleAddMembers()}
-        >
-          {savingMembers ? "Adding..." : `Add ${selectedMembersToAdd.length ? `(${selectedMembersToAdd.length})` : ""}`}
-        </Button>
-      </div>
-    }
-  >
-    <div className="relative mb-2">
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-      <Input
-        placeholder="Search organization members..."
-        value={memberSearch}
-        onChange={(e) => setMemberSearch(e.target.value)}
-        className="pl-9"
-      />
-    </div>
-
-    <div className="max-h-80 overflow-y-auto rounded-lg border border-zinc-200">
-      {membersLoading ? (
-        <div className="p-8 text-center text-sm text-zinc-500">Loading directory...</div>
-      ) : filteredAvailableEmployees.length === 0 ? (
-        <div className="p-8 text-center text-sm text-zinc-500">No members available to add.</div>
-      ) : (
-        filteredAvailableEmployees.map((employee) => (
-          <label key={employee.user_id} className="flex cursor-pointer items-center gap-3 border-b border-zinc-100 bg-white px-4 py-3 transition-colors hover:bg-zinc-50 last:border-b-0">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
-              checked={selectedMembersToAdd.includes(employee.user_id)}
-              onChange={(e) => {
-                setSelectedMembersToAdd(prev => 
-                  e.target.checked ? [...prev, employee.user_id] : prev.filter(id => id !== employee.user_id)
-                );
-              }}
-            />
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-xs font-medium text-zinc-600">
-              {employee.name.charAt(0)}
+      {showAddMembers && (
+        <AppModal
+          title="Add Project Members"
+          description="Select organization members to grant them access to this project."
+          onClose={() => setShowAddMembers(false)}
+          widthClassName="w-[480px]"
+          footer={
+            <div className="flex w-full justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowAddMembers(false)}>Cancel</Button>
+              <Button
+                disabled={selectedMembersToAdd.length === 0 || savingMembers}
+                onClick={() => void handleAddMembers()}
+              >
+                {savingMembers ? "Adding..." : `Add ${selectedMembersToAdd.length ? `(${selectedMembersToAdd.length})` : ""}`}
+              </Button>
             </div>
-            <span className="text-sm font-medium text-zinc-900">{employee.name}</span>
-          </label>
-        ))
-      )}
-    </div>
-  </AppModal>
-)}
-
-{/* --- Refactored Manage Members Modal --- */}
-{showManageMembers && (
-  <AppModal
-    title="Manage Project Members"
-    description="Remove team members from this project workspace."
-    onClose={() => setShowManageMembers(false)}
-    widthClassName="w-[480px]"
-    footer={
-      <div className="flex w-full justify-end gap-2">
-        <Button variant="outline" onClick={() => setShowManageMembers(false)}>Cancel</Button>
-        <Button
-          variant="destructive"
-          disabled={selectedMembersToRemove.length === 0 || savingMembers}
-          onClick={() => void handleRemoveMembers()}
+          }
         >
-          {savingMembers ? "Removing..." : `Remove Selected ${selectedMembersToRemove.length ? `(${selectedMembersToRemove.length})` : ""}`}
-        </Button>
-      </div>
-    }
-  >
-    <div className="relative mb-2">
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-      <Input
-        placeholder="Filter project members..."
-        value={memberSearch}
-        onChange={(e) => setMemberSearch(e.target.value)}
-        className="pl-9"
-      />
-    </div>
-
-    <div className="max-h-80 overflow-y-auto rounded-lg border border-zinc-200">
-      {filteredProjectMembers.length === 0 ? (
-        <div className="p-8 text-center text-sm text-zinc-500">No project members found.</div>
-      ) : (
-        filteredProjectMembers.map((member) => (
-          <label key={member.user_id} className="flex cursor-pointer items-center gap-3 border-b border-zinc-100 bg-white px-4 py-3 transition-colors hover:bg-red-50 last:border-b-0">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-zinc-300 text-red-600 focus:ring-red-500"
-              checked={selectedMembersToRemove.includes(member.user_id)}
-              onChange={(e) => {
-                setSelectedMembersToRemove(prev => 
-                  e.target.checked ? [...prev, member.user_id] : prev.filter(id => id !== member.user_id)
-                );
-              }}
+          <div className="relative mb-2">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <Input
+              placeholder="Search organization members..."
+              value={memberSearch}
+              onChange={(e) => setMemberSearch(e.target.value)}
+              className="pl-9"
             />
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-xs font-medium text-zinc-600">
-              {member.name.charAt(0)}
-            </div>
-            <span className="text-sm font-medium text-zinc-900">{member.name}</span>
-          </label>
-        ))
+          </div>
+
+          <div className="max-h-80 overflow-y-auto rounded-lg border border-zinc-200">
+            {membersLoading ? (
+              <div className="p-8 text-center text-sm text-zinc-500">Loading directory...</div>
+            ) : filteredAvailableEmployees.length === 0 ? (
+              <div className="p-8 text-center text-sm text-zinc-500">No members available to add.</div>
+            ) : (
+              filteredAvailableEmployees.map((employee) => (
+                <label key={employee.user_id} className="flex cursor-pointer items-center gap-3 border-b border-zinc-100 bg-white px-4 py-3 transition-colors hover:bg-zinc-50 last:border-b-0">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+                    checked={selectedMembersToAdd.includes(employee.user_id)}
+                    onChange={(e) => {
+                      setSelectedMembersToAdd(prev => 
+                        e.target.checked ? [...prev, employee.user_id] : prev.filter(id => id !== employee.user_id)
+                      );
+                    }}
+                  />
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-xs font-medium text-zinc-600">
+                    {employee.name.charAt(0)}
+                  </div>
+                  <span className="text-sm font-medium text-zinc-900">{employee.name}</span>
+                </label>
+              ))
+            )}
+          </div>
+        </AppModal>
       )}
-    </div>
-  </AppModal>
-)}
+
+      {showManageMembers && (
+        <AppModal
+          title="Manage Project Members"
+          description="Remove team members from this project workspace."
+          onClose={() => setShowManageMembers(false)}
+          widthClassName="w-[480px]"
+          footer={
+            <div className="flex w-full justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowManageMembers(false)}>Cancel</Button>
+              <Button
+                variant="destructive"
+                disabled={selectedMembersToRemove.length === 0 || savingMembers}
+                onClick={() => void handleRemoveMembers()}
+              >
+                {savingMembers ? "Removing..." : `Remove Selected ${selectedMembersToRemove.length ? `(${selectedMembersToRemove.length})` : ""}`}
+              </Button>
+            </div>
+          }
+        >
+          <div className="relative mb-2">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <Input
+              placeholder="Filter project members..."
+              value={memberSearch}
+              onChange={(e) => setMemberSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          <div className="max-h-80 overflow-y-auto rounded-lg border border-zinc-200">
+            {filteredProjectMembers.length === 0 ? (
+              <div className="p-8 text-center text-sm text-zinc-500">No project members found.</div>
+            ) : (
+              filteredProjectMembers.map((member) => (
+                <label key={member.user_id} className="flex cursor-pointer items-center gap-3 border-b border-zinc-100 bg-white px-4 py-3 transition-colors hover:bg-red-50 last:border-b-0">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-zinc-300 text-red-600 focus:ring-red-500"
+                    checked={selectedMembersToRemove.includes(member.user_id)}
+                    onChange={(e) => {
+                      setSelectedMembersToRemove(prev => 
+                        e.target.checked ? [...prev, member.user_id] : prev.filter(id => id !== member.user_id)
+                      );
+                    }}
+                  />
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-xs font-medium text-zinc-600">
+                    {member.name.charAt(0)}
+                  </div>
+                  <span className="text-sm font-medium text-zinc-900">{member.name}</span>
+                </label>
+              ))
+            )}
+          </div>
+        </AppModal>
+      )}
     </div>
   );
 }

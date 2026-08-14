@@ -3,23 +3,39 @@
 import { useEffect, useRef, useState } from "react";
 import { X, Trash2, Sparkles, ListChecks, Paperclip, Link2 } from "lucide-react";
 import type { TablesUpdate } from "@/lib/types/database";
-import type { EmployeeTaskRpc, TaskStatus } from "@/lib/types/task";
+import type { TaskStatus } from "@/lib/types/task";
 import { CommentsPanel } from "@/components/tasks/CommentsPanel";
 import { DatePicker } from "@/components/ui/date-picker";
 
 type ProjectResource = { id: string; name: string };
+type ProjectMemberResource = { user_id: string; name: string };
+type TaskDetailsTask = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  start_date: string | null;
+  due_date: string | null;
+  project_id: string | null;
+  assignee_id?: string | null;
+  assignee_name?: string | null;
+  project_name?: string | null;
+  created_at: string;
+};
 
 type TaskDetailPanelProps = {
-  task: EmployeeTaskRpc;
+  task: TaskDetailsTask;
   orgId: string;
   currentUserId: string | null;
   canManage: boolean;
   canEditStatus: boolean;
-  projects: ProjectResource[];
+  projects?: ProjectResource[];
+  projectMembers?: ProjectMemberResource[];
   savingId: string | null;
   onClose: () => void;
   onCommitUpdate: (taskId: string, updates: TablesUpdate<"tasks">) => void;
-  onProjectChange: (taskId: string, projectId: string | null) => void;
+  onProjectChange?: (taskId: string, projectId: string | null) => void;
+  onAssign?: (taskId: string, resourceId: string | null) => void | Promise<void>;
   onRequestDelete: (taskId: string) => void;
 };
 
@@ -41,6 +57,8 @@ export function TaskDetailsPanel({
   canManage,
   canEditStatus,
   projects,
+  projectMembers,
+  onAssign,
   savingId,
   onClose,
   onCommitUpdate,
@@ -80,6 +98,9 @@ export function TaskDetailsPanel({
   const fieldsDisabled = !canManage;
   const statusDisabled = !canManage && !canEditStatus;
   const dateDisabled = !canManage && !canEditStatus;
+  const workspaceOptions = projects ?? [];
+  const hasAssigneeControl = Boolean(projectMembers?.length && onAssign);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-8">
@@ -170,22 +191,43 @@ export function TaskDetailsPanel({
                 </select>
               </div>
 
-              <div className="flex items-center gap-4">
-                <span className="w-28 shrink-0 text-sm text-zinc-500">Workspace</span>
-                <select
-                  value={task.project_id || ""}
-                  onChange={(e) => onProjectChange(task.id, e.target.value || null)}
-                  disabled={fieldsDisabled}
-                  className={`appearance-none bg-transparent text-sm font-medium outline-none disabled:cursor-default ${
-                    task.project_id ? "text-zinc-900" : "italic text-zinc-400"
-                  }`}
-                >
-                  <option value="">No workspace</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>{project.name}</option>
-                  ))}
-                </select>
-              </div>
+              {hasAssigneeControl ? (
+                <div className="flex items-center gap-4">
+                  <span className="w-28 shrink-0 text-sm text-zinc-500">Assignee</span>
+                  <select
+                    value={task.assignee_id || ""}
+                    onChange={(e) => void onAssign?.(task.id, e.target.value || null)}
+                    disabled={fieldsDisabled}
+                    className={`appearance-none bg-transparent text-sm font-medium outline-none disabled:cursor-default ${
+                      task.assignee_id ? "text-zinc-900" : "italic text-zinc-400"
+                    }`}
+                  >
+                    <option value="">Unassigned</option>
+                    {projectMembers?.map((member) => (
+                      <option key={member.user_id} value={member.user_id}>
+                        {member.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="flex items-center gap-4">
+                  <span className="w-28 shrink-0 text-sm text-zinc-500">Workspace</span>
+                  <select
+                    value={task.project_id || ""}
+                    onChange={(e) => onProjectChange?.(task.id, e.target.value || null)}
+                    disabled={fieldsDisabled}
+                    className={`appearance-none bg-transparent text-sm font-medium outline-none disabled:cursor-default ${
+                      task.project_id ? "text-zinc-900" : "italic text-zinc-400"
+                    }`}
+                  >
+                    <option value="">No workspace</option>
+                    {workspaceOptions.map((project) => (
+                      <option key={project.id} value={project.id}>{project.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="flex items-center gap-4">
                 <span className="w-28 shrink-0 text-sm text-zinc-500">Start date</span>
@@ -233,10 +275,11 @@ export function TaskDetailsPanel({
   </div>
 
   <textarea
+    ref={descriptionRef}
     value={descriptionValue}
     onChange={(e) => setDescriptionValue(e.target.value)}
     onBlur={(e) => {
-      const next = e.target.value;
+      const next = e.currentTarget.value;
       if (next !== (task.description ?? "")) {
         onCommitUpdate(task.id, { description: next || null });
       }
