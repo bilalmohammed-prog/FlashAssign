@@ -125,6 +125,7 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const titleClickTimeoutRef = useRef<number | null>(null);
   const [descPopoverOpen, setDescPopoverOpen] = useState(false);
   const [commentsPopoverOpen, setCommentsPopoverOpen] = useState(false);
   const commentsButtonRef = useRef<HTMLButtonElement>(null);
@@ -144,6 +145,14 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
     setTitleValue(task.title);
     setIsEditingTitle(false);
   }, [task.title]);
+
+  useEffect(() => {
+    return () => {
+      if (titleClickTimeoutRef.current !== null) {
+        window.clearTimeout(titleClickTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const descriptionDisabled = !canManage || deleteMode;
 
@@ -201,14 +210,27 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
         cancelTitleEditing();
       }
     }}
-    className="min-w-0 max-w-sm rounded px-1.5 py-0.5 text-[15px] font-medium text-zinc-900 outline-none ring-2 ring-indigo-500"
+    className="w-full min-w-0 rounded px-1.5 py-0.5 text-[15px] font-medium text-zinc-900 outline-none ring-2 ring-indigo-500"
   />
 ) : (
   <button
     type="button"
-    onClick={() => onOpenDetail(task.id)}
+    onClick={() => {
+      if (titleClickTimeoutRef.current !== null) {
+        window.clearTimeout(titleClickTimeoutRef.current);
+      }
+
+      titleClickTimeoutRef.current = window.setTimeout(() => {
+        onOpenDetail(task.id);
+        titleClickTimeoutRef.current = null;
+      }, 200);
+    }}
     onDoubleClick={(e) => {
       e.stopPropagation();
+      if (titleClickTimeoutRef.current !== null) {
+        window.clearTimeout(titleClickTimeoutRef.current);
+        titleClickTimeoutRef.current = null;
+      }
       startTitleEditing();
     }}
     title={task.title}
