@@ -145,6 +145,7 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
     setIsEditingTitle(false);
   }, [task.title]);
 
+  const descriptionDisabled = !canManage || deleteMode;
 
   useEffect(() => {
     if (!descPopoverOpen) return;
@@ -236,15 +237,47 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
                 </button>
 
                 {descPopoverOpen && (
-                  <div
-                    className="absolute left-0 top-6 z-50 w-[400px] rounded-lg border border-zinc-200 bg-white p-3 shadow-lg"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <p className="max-h-80 overflow-y-auto whitespace-pre-wrap break-words text-sm text-zinc-600">
-                      {task.description}
-                    </p>
-                  </div>
-                )}
+  <div
+    ref={descPopoverRef}
+    role={canManage ? "textbox" : undefined}
+    aria-multiline={canManage ? "true" : undefined}
+    contentEditable={canManage ? !descriptionDisabled : undefined}
+    suppressContentEditableWarning
+    onClick={(e) => e.stopPropagation()}
+    onInput={(e) => {
+      if (canManage) {
+        setDescriptionValue(e.currentTarget.textContent ?? "");
+      }
+    }}
+    onBlur={() => {
+      if (!canManage) return;
+
+      const nextDescription = descriptionValue.trim();
+
+      if (descriptionValue !== (task.description ?? "")) {
+        onCommitUpdate(task.id, {
+          description: nextDescription || null,
+        });
+      }
+    }}
+    onKeyDown={(e) => {
+      if (!canManage) return;
+
+      if (e.key === "Escape") {
+        setDescriptionValue(task.description ?? "");
+        setDescPopoverOpen(false);
+      }
+
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        e.currentTarget.blur();
+      }
+    }}
+    className="absolute left-0 top-6 z-50 max-h-80 min-h-32 w-[400px] overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-zinc-200 bg-white px-3 py-3 text-sm leading-6 text-zinc-700 shadow-lg outline-none focus:border-indigo-300"
+  >
+    {canManage ? descriptionValue : task.description}
+  </div>
+)}
               </div>
             )}
 
