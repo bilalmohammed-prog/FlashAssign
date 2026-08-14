@@ -13,6 +13,8 @@ import {
   Trash2,
   X,
   ChevronRight,
+  ListSortDescending,
+  MessageSquareDashed,
 } from "lucide-react";
 import type { Enums, TablesUpdate } from "@/lib/types/database";
 import { updateTask } from "@/actions/task/update";
@@ -30,6 +32,8 @@ import { isAppRole, toAppRole } from "@/lib/auth/permissions";
 import { supabase } from "@/lib/supabase/client";
 import { useOrgRole } from "@/hooks/useOrgRole";
 import { DatePicker } from "@/components/ui/date-picker";
+import { CommentsPopover } from "@/components/tasks/CommentsPopover";
+import { TaskDetailsPanel } from "@/components/tasks/TaskDetailsPanelNew";
 
 export type EmployeeTaskRpc = {
   id: string;
@@ -76,8 +80,7 @@ type TaskRowProps = {
   onCommitUpdate: (taskId: string, updates: TablesUpdate<"tasks">) => void;
   onProjectChange: (taskId: string, projectId: string | null) => void;
   onToggleDeleteSelection: (taskId: string) => void;
-  isExpanded: boolean;
-  onToggleExpand: (taskId: string) => void;
+  onOpenDetail: (taskId: string) => void;
 };
 
 function isTaskOverdue(task: { due_date?: string | null; status?: string }): boolean {
@@ -106,8 +109,7 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
   onCommitUpdate,
   onProjectChange,
   onToggleDeleteSelection,
-  isExpanded,
-  onToggleExpand
+  onOpenDetail,
 }: TaskRowProps) {
   const [titleValue, setTitleValue] = useState(task.title);
   const [descriptionValue, setDescriptionValue] = useState(task.description ?? "");
@@ -119,6 +121,51 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
     : "border-zinc-100 bg-white hover:bg-zinc-100/60";
   const overdue = isTaskOverdue(task);
 
+
+
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const [descPopoverOpen, setDescPopoverOpen] = useState(false);
+  const [commentsPopoverOpen, setCommentsPopoverOpen] = useState(false);
+  const commentsButtonRef = useRef<HTMLButtonElement>(null);
+  const descPopoverRef = useRef<HTMLDivElement>(null);
+  const startTitleEditing = useCallback(() => {
+    if (fieldsDisabled) return;
+
+    setIsEditingTitle(true);
+
+    requestAnimationFrame(() => {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    });
+  }, [fieldsDisabled]);
+
+  const cancelTitleEditing = useCallback(() => {
+    setTitleValue(task.title);
+    setIsEditingTitle(false);
+  }, [task.title]);
+
+
+  useEffect(() => {
+    if (!descPopoverOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+
+      if (!(target instanceof Node)) return;
+
+      if (descPopoverRef.current && !descPopoverRef.current.contains(target)) {
+        setDescPopoverOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+    };
+  }, [descPopoverOpen]);
+
   return (
     <div
       className={`task-row-wrapper group relative flex flex-col transition-colors ${rowClassName}`}
@@ -128,42 +175,106 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
       >
         <div className="flex w-full min-w-0 flex-col">
           <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => onToggleExpand(task.id)}
-              className="shrink-0 text-zinc-400 transition-transform duration-150 hover:text-zinc-700"
-              style={{ transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)" }}
-              aria-label={isExpanded ? "Collapse" : "Expand"}
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-            <input
-              value={titleValue}
-              onChange={(e) => setTitleValue(e.target.value)}
-              onBlur={(e) => {
-                if (e.target.value !== task.title) {
-                  onCommitUpdate(task.id, { title: e.target.value });
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") e.currentTarget.blur();
-              }}
-              disabled={fieldsDisabled}
-              className={`w-full truncate rounded px-1.5 py-0.5 text-[15px] font-medium outline-none transition-colors disabled:cursor-default
-                ${
-                  !fieldsDisabled
-                    ? "cursor-text border border-transparent hover:border-zinc-300 hover:bg-zinc-50 focus:border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500"
-                    : "border-transparent bg-transparent"
-                }
-                ${
-                  selectedForDelete
-                    ? "line-through text-red-950/80 opacity-90"
-                    : task.status === "done"
-                    ? "text-zinc-900"
-                    : "text-zinc-900"
-                }
-              `}
-            />
+            
+            {isEditingTitle ? (
+  <input
+    ref={titleInputRef}
+    value={titleValue}
+    onChange={(e) => setTitleValue(e.target.value)}
+    disabled={fieldsDisabled}
+    onBlur={() => {
+      if (titleValue.trim() && titleValue !== task.title) {
+        onCommitUpdate(task.id, {
+          title: titleValue.trim(),
+        });
+      }
+
+      setIsEditingTitle(false);
+    }}
+    onKeyDown={(e) => {
+      if (e.key === "Enter") {
+        e.currentTarget.blur();
+      }
+
+      if (e.key === "Escape") {
+        cancelTitleEditing();
+      }
+    }}
+    className="min-w-0 max-w-sm rounded px-1.5 py-0.5 text-[15px] font-medium text-zinc-900 outline-none ring-2 ring-indigo-500"
+  />
+) : (
+  <button
+    type="button"
+    onClick={() => onOpenDetail(task.id)}
+    onDoubleClick={(e) => {
+      e.stopPropagation();
+      startTitleEditing();
+    }}
+    title={task.title}
+    className={`min-w-0 max-w-sm shrink truncate rounded px-1.5 py-0.5 text-left text-[15px] font-medium outline-none transition-colors hover:bg-zinc-50 hover:underline ${
+      selectedForDelete
+        ? "line-through text-red-950/80 opacity-90"
+        : "text-zinc-900"
+    }`}
+  >
+    {titleValue}
+  </button>
+)}
+
+            {task.description && (
+              <div ref={descPopoverRef} className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDescPopoverOpen((prev) => !prev);
+                  }}
+                  className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+                  title="View description"
+                >
+                  <ListSortDescending className="h-4 w-4" strokeWidth={2} />
+                </button>
+
+                {descPopoverOpen && (
+                  <div
+                    className="absolute left-0 top-6 z-50 w-[400px] rounded-lg border border-zinc-200 bg-white p-3 shadow-lg"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <p className="max-h-80 overflow-y-auto whitespace-pre-wrap break-words text-sm text-zinc-600">
+                      {task.description}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+          <div className="relative shrink-0">
+  <button
+    ref={commentsButtonRef}
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      setCommentsPopoverOpen((prev) => !prev);
+    }}
+    className="rounded p-0.5 text-zinc-400 transition-colors hover:text-zinc-600"
+    title="Comments"
+  >
+    <MessageSquareDashed
+      className="h-[13px] w-4 text-zinc-500 hover:text-zinc-600"
+    />
+  </button>
+
+  {commentsPopoverOpen && (
+    <CommentsPopover
+      taskId={task.id}
+      orgId={orgId}
+      currentUserId={currentUserId}
+      canManageAll={canManage}
+      onClose={() => setCommentsPopoverOpen(false)}
+      triggerRef={commentsButtonRef}
+    />
+  )}
+</div>
           </div>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-zinc-500 md:hidden">
@@ -269,19 +380,7 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
         </div>
       </div>
 
-      {isExpanded && (
-        <TaskDetailsPanels
-          taskId={task.id}
-          orgId={orgId}
-          currentUserId={currentUserId}
-          descriptionValue={descriptionValue}
-          persistedDescription={task.description}
-          canEditDescription={!fieldsDisabled}
-          canManageComments={canManage}
-          onDescriptionChange={setDescriptionValue}
-          onCommitUpdate={onCommitUpdate}
-        />
-      )}
+      
     </div>
   );
 });
@@ -306,6 +405,8 @@ function getTaskStatusBadgeClass(status: string | null) {
 }
 
 export default function EmployeeTasksPage() {
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  
   const role = useOrgRole();
   const appRole = role && isAppRole(role) ? toAppRole(role) : null;
   const capabilities = appRole ? getWorkspaceCapabilities(appRole) : null;
@@ -359,6 +460,13 @@ export default function EmployeeTasksPage() {
   const [headingGone, setHeadingGone] = useState(false);
 
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+const descPopoverRef = useRef<HTMLDivElement>(null);
+  const activeTask = useMemo(
+  () => tasks.find((task) => task.id === activeTaskId) ?? null,
+  [tasks, activeTaskId]
+);
+const [descPopoverOpen, setDescPopoverOpen] = useState(false);
+
   const toggleExpand = useCallback((taskId: string) => {
     setExpandedTaskId((prev) => (prev === taskId ? null : taskId));
   }, []);
@@ -409,7 +517,26 @@ export default function EmployeeTasksPage() {
     }
     void loadMeta();
   }, [orgId, employeeId]);
+useEffect(() => {
+  if (!descPopoverOpen) return;
 
+  const handleOutsideClick = (event: MouseEvent) => {
+    const target = event.target as Node;
+
+    if (
+      descPopoverRef.current &&
+      !descPopoverRef.current.contains(target)
+    ) {
+      setDescPopoverOpen(false);
+    }
+  };
+
+  document.addEventListener("mousedown", handleOutsideClick);
+
+  return () => {
+    document.removeEventListener("mousedown", handleOutsideClick);
+  };
+}, [descPopoverOpen]);
   const fetchTasks = useCallback(async (offset: number, append = false) => {
     if (append && loadingMoreRef.current) return;
 
@@ -870,13 +997,25 @@ const canEditStatusForEmployee = useMemo(
                 onCommitUpdate={commitTaskUpdate}
                 onProjectChange={handleProjectAssignment}
                 onToggleDeleteSelection={toggleTaskSelection}
-                isExpanded={expandedTaskId === task.id}
-                onToggleExpand={toggleExpand}
-                
+                onOpenDetail={setActiveTaskId}
               />
             ))}
           </div>
-
+            {activeTask && (
+            <TaskDetailsPanel
+              task={activeTask}
+              orgId={orgId}
+              currentUserId={currentUserId}
+              canManage={canManage}
+              canEditStatus={canEditStatusForEmployee}
+              projects={projects}
+              savingId={savingId}
+              onClose={() => setActiveTaskId(null)}
+              onCommitUpdate={commitTaskUpdate}
+              onProjectChange={handleProjectAssignment}
+              onRequestDelete={toggleTaskSelection}
+            />
+)}
           <div ref={sentinelRef} className="h-4 w-full bg-transparent" />
 
           {loadingMore && (
