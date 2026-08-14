@@ -34,21 +34,10 @@ import { supabase } from "@/lib/supabase/client";
 import { useOrgRole } from "@/hooks/useOrgRole";
 import { DatePicker } from "@/components/ui/date-picker";
 import { CommentsPanel } from "@/components/tasks/CommentsPanel";
+import { TaskDetailsPanel } from "@/components/tasks/TaskDetailsPanelNew";
+import type { EmployeeTaskRpc, TaskStatus } from "@/lib/types/task";
 
-export type EmployeeTaskRpc = {
-  id: string;
-  organization_id: string;
-  project_id: string | null;
-  project_name: string | null;
-  title: string;
-  description: string | null;
-  status: string;
-  start_date: string | null;
-  due_date: string | null;
-  created_by: string;
-  created_at: string;
-  total_count: number;
-};
+
 
 type TaskPatch = {
   title?: string;
@@ -60,7 +49,6 @@ type TaskPatch = {
   project_name?: string | null;
 };
 
-type TaskStatus = Enums<"task_status">;
 type ProjectResource = { id: string; name: string };
 
 const PAGE_SIZE = 10;
@@ -80,8 +68,7 @@ type TaskRowProps = {
   onToggleDeleteSelection: (taskId: string) => void;
   orgId: string;
   currentUserId: string | null;
-  isExpanded: boolean;
-  onToggleExpand: (taskId: string) => void;
+  onOpenDetail: (taskId: string) => void;
 };
 
 function isTaskOverdue(task: { due_date?: string | null; status?: string }): boolean {
@@ -110,14 +97,14 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
   onToggleDeleteSelection,
   orgId,
   currentUserId,
-  isExpanded,
-  onToggleExpand,
+  onOpenDetail,
 }: TaskRowProps) {
   const [titleValue, setTitleValue] = useState(task.title);
   const [descriptionValue, setDescriptionValue] = useState(task.description ?? "");
   const [descPopoverOpen, setDescPopoverOpen] = useState(false);
   const [commentsPopoverOpen, setCommentsPopoverOpen] = useState(false);
   const commentsButtonRef = useRef<HTMLButtonElement>(null);
+  const descPopoverRef = useRef<HTMLDivElement>(null);
 
   const fieldsDisabled = !canManage || deleteMode;
   const statusDisabled = deleteMode || (!canManage && !canEditStatus);
@@ -125,7 +112,24 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
     ? "border-red-200 bg-red-50/70 hover:bg-red-50/80"
     : "border-zinc-100 bg-white hover:bg-zinc-100/60";
   const overdue = isTaskOverdue(task);
+  useEffect(() => {
+  if (!descPopoverOpen) return;
 
+  function handleOutsideClick(e: MouseEvent) {
+    if (
+      descPopoverRef.current &&
+      !descPopoverRef.current.contains(e.target as Node)
+    ) {
+      setDescPopoverOpen(false);
+    }
+  }
+
+  document.addEventListener("mousedown", handleOutsideClick);
+
+  return () => {
+    document.removeEventListener("mousedown", handleOutsideClick);
+  };
+}, [descPopoverOpen]);
   return (
     <div
       className={`task-row-wrapper group relative flex flex-col transition-colors ${rowClassName}`}
@@ -135,61 +139,42 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
       >
         <div className="flex w-full min-w-0 flex-col">
           <div className="flex min-w-0 items-center gap-1">
-            <span className="relative inline-block min-w-6 max-w-sm shrink">
-              <span
-                aria-hidden="true"
-                className={`invisible block truncate rounded px-1.5 py-0.5 text-[15px] font-medium ${
-                  selectedForDelete ? "line-through" : ""
-                }`}
-              >
-                {titleValue || " "}
-              </span>
-              <input
-                value={titleValue}
-                onChange={(e) => setTitleValue(e.target.value)}
-                onBlur={(e) => {
-                  if (e.target.value !== task.title) {
-                    onCommitUpdate(task.id, { title: e.target.value });
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") e.currentTarget.blur();
-                }}
-                onClick={(e) => e.stopPropagation()}
-                disabled={fieldsDisabled}
-                className={`absolute inset-0 w-full min-w-0 truncate rounded px-1.5 py-0.5 text-[15px] font-medium outline-none transition-colors disabled:cursor-default
-                  ${
-                    !fieldsDisabled
-                      ? "cursor-text border border-transparent hover:border-zinc-300 hover:bg-zinc-50 focus:border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500"
-                      : "border-transparent bg-transparent"
-                  }
-                  ${
-                    selectedForDelete
-                      ? "line-through text-red-950/80 opacity-90"
-                      : task.status === "done"
-                      ? "text-zinc-900"
-                      : "text-zinc-900"
-                  }
-                `}
-              />
-            </span>
+            <button
+              type="button"
+              onClick={() => onOpenDetail(task.id)}
+              title={task.title}
+              className={`min-w-0 max-w-sm shrink truncate rounded px-1.5 py-0.5 text-left text-[15px] font-medium outline-none transition-colors hover:bg-zinc-50 hover:underline ${
+                selectedForDelete ? "line-through text-red-950/80 opacity-90" : "text-zinc-900"
+              }`}
+            >
+              {titleValue}
+            </button>
             {task.description && (
               <div
+                ref={descPopoverRef}
                 className="relative shrink-0"
-                onMouseEnter={() => setDescPopoverOpen(true)}
-                onMouseLeave={() => setDescPopoverOpen(false)}
               >
-                <ListSortDescending
-                  className="h-4 w-4 text-zinc-500 hover:text-zinc-600"
-                  strokeWidth={2}
-                />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDescPopoverOpen((prev) => !prev);
+                  }}
+                  className="rounded p-0.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+                  title="View description"
+                >
+                  <ListSortDescending
+                    className="h-4 w-4"
+                    strokeWidth={2}
+                  />
+                </button>
 
                 {descPopoverOpen && (
                   <div
-                    className="absolute left-0 top-6 z-50 w-72 rounded-lg border border-zinc-200 bg-white p-3 shadow-lg"
+                    className="absolute left-0 top-6 z-50 w-100 rounded-lg border border-zinc-200 bg-white p-3 shadow-lg"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <p className="max-h-40 overflow-y-auto whitespace-pre-wrap text-sm text-zinc-600">
+                    <p className="max-h-80 overflow-y-auto whitespace-pre-wrap text-sm text-zinc-600">
                       {task.description}
                     </p>
                   </div>
@@ -335,19 +320,7 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
         </div>
       </div>
 
-      {isExpanded && (
-        <TaskDetailsPanels
-          taskId={task.id}
-          orgId={orgId}
-          currentUserId={currentUserId}
-          descriptionValue={descriptionValue}
-          persistedDescription={task.description}
-          canEditDescription={!fieldsDisabled}
-          canManageComments={canManage}
-          onDescriptionChange={setDescriptionValue}
-          onCommitUpdate={onCommitUpdate}
-        />
-      )}
+      
     </div>
   );
 });
@@ -420,11 +393,12 @@ export default function MyTasksPage() {
   const isFirstRender = useRef(true);
   const headingRef = useRef<HTMLDivElement>(null);
   const [headingGone, setHeadingGone] = useState(false);
-  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
-  const toggleExpand = useCallback((taskId: string) => {
-    setExpandedTaskId((prev) => (prev === taskId ? null : taskId));
-  }, []);
-  
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const activeTask = useMemo(
+    () => tasks.find((t) => t.id === activeTaskId) ?? null,
+    [tasks, activeTaskId]
+  );
+
   useEffect(() => {
     void supabase.auth.getUser().then(({ data }) => {
       setCurrentUserId(data.user?.id ?? null);
@@ -915,8 +889,7 @@ const canEditStatusForUser = useMemo(
                 onCommitUpdate={commitTaskUpdate}
                 onProjectChange={handleProjectAssignment}
                 onToggleDeleteSelection={toggleTaskSelection}
-                isExpanded={expandedTaskId === task.id}
-                onToggleExpand={toggleExpand}
+                onOpenDetail={setActiveTaskId}
               />
             ))}
           </div>
@@ -1020,6 +993,21 @@ const canEditStatusForUser = useMemo(
             />
           </div>
         </AppModal>
+      )}
+      {activeTask && (
+        <TaskDetailsPanel
+          task={activeTask}
+          orgId={orgId}
+          currentUserId={currentUserId}
+          canManage={canManage}
+          canEditStatus={canEditStatusForUser}
+          projects={projects}
+          savingId={savingId}
+          onClose={() => setActiveTaskId(null)}
+          onCommitUpdate={commitTaskUpdate}
+          onProjectChange={handleProjectAssignment}
+          onRequestDelete={toggleTaskSelection}
+        />
       )}
     </div>
   );

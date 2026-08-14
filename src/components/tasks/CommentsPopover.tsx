@@ -42,7 +42,7 @@ export function CommentsPopover({
   return (
     <div
       ref={popoverRef}
-      className="absolute left-0 top-6 z-50 h-[30rem] w-96 overflow-hidden rounded-md border border-zinc-200 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.12)] ring-1 ring-black/5 selection:bg-indigo-500/20 selection:text-indigo-900"
+      className="absolute left-0 top-6 z-50 h-[30rem] w-96 overflow-hidden rounded-md border border-zinc-200 bg-white shadow-[0_8px_30px_rgba(0,0,0,0.00)] ring-1 ring-black/5 selection:bg-indigo-500/20 selection:text-indigo-900"
       onClick={(e) => e.stopPropagation()}
     >
       <CommentsPanel
