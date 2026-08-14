@@ -174,7 +174,7 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
                     className="absolute left-0 top-6 z-50 w-100 rounded-lg border border-zinc-200 bg-white p-3 shadow-lg"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <p className="max-h-80 overflow-y-auto whitespace-pre-wrap text-sm text-zinc-600">
+                    <p className="max-h-80 overflow-y-auto whitespace-pre-wrap break-words text-sm text-zinc-600">
                       {task.description}
                     </p>
                   </div>
@@ -253,14 +253,14 @@ const EmployeeTaskRow = memo(function EmployeeTaskRow({
             }}
             onClick={(e) => e.stopPropagation()}
             disabled={statusDisabled}
-            className={`appearance-none rounded-md border px-2.5 py-1 text-[13px] font-medium outline-none disabled:cursor-default cursor-pointer transition-all ${getTaskStatusBadgeClass(
+            className={`appearance-none bg-transparent p-0 text-[13px] font-medium outline-none disabled:cursor-default cursor-pointer transition-colors ${getTaskStatusBadgeClass(
               task.status
             )} ${selectedForDelete ? "opacity-90" : ""}`}
           >
-            <option value="todo">To Do</option>
-            <option value="in_progress">In Progress</option>
-            <option value="blocked">Blocked</option>
-            <option value="done">Completed</option>
+            <option className="text-zinc-600" value="todo">To Do</option>
+            <option className="text-zinc-600" value="in_progress">In Progress</option>
+            <option className="text-zinc-600" value="blocked">Blocked</option>
+            <option className="text-zinc-600" value="done">Completed</option>
           </select>
           {savingId === task.id && <span className="text-xs text-zinc-500">Saving...</span>}
         </div>
@@ -337,10 +337,10 @@ function getTaskStatusLabel(status: string | null) {
 }
 
 function getTaskStatusBadgeClass(status: string | null) {
-  if (status === "done") return "bg-emerald-50 text-emerald-700 border-emerald-200/60";
-  if (status === "in_progress") return "bg-indigo-50 text-indigo-700 border-indigo-200/60";
-  if (status === "blocked") return "bg-amber-50 text-amber-700 border-amber-200/60";
-  return "bg-zinc-100 text-zinc-700 border-zinc-200/60";
+  if (status === "done") return "text-emerald-600";
+  if (status === "in_progress") return "text-indigo-600";
+  if (status === "blocked") return "text-amber-600";
+  return "text-zinc-600";
 }
 
 export default function MyTasksPage() {
