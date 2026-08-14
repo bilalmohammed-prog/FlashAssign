@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   Check,
   Loader2,
+  MessageSquare,
   Pencil,
   Trash2,
   X,
@@ -37,12 +38,34 @@ function getInitial(comment: CommentWithAuthor): string {
 }
 
 function formatTimestamp(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
+  const date = new Date(value);
+  const datePart = new Intl.DateTimeFormat(undefined, {
     month: "short",
     day: "numeric",
+  }).format(date);
+  const timePart = new Intl.DateTimeFormat(undefined, {
     hour: "numeric",
     minute: "2-digit",
-  }).format(new Date(value));
+  }).format(date);
+  return `${datePart} at ${timePart}`;
+}
+
+// Deterministic avatar color per user — visual polish only, not a new feature.
+const AVATAR_COLORS = [
+  { bg: "bg-blue-100", text: "text-blue-700" },
+  { bg: "bg-violet-100", text: "text-violet-700" },
+  { bg: "bg-emerald-100", text: "text-emerald-700" },
+  { bg: "bg-amber-100", text: "text-amber-700" },
+  { bg: "bg-rose-100", text: "text-rose-700" },
+  { bg: "bg-cyan-100", text: "text-cyan-700" },
+];
+
+function getAvatarColor(seed: string) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
 export function CommentsPanel({
@@ -64,8 +87,6 @@ export function CommentsPanel({
   const { addToast } = useToast();
 
   const trimmedDraft = draft.trim();
-
-
 
   const setCommentPending = (commentId: string, isPending: boolean) => {
     setPendingIds((current) => {
@@ -93,10 +114,10 @@ export function CommentsPanel({
   };
 
   useEffect(() => {
-  if (!hasLoaded && !loading) {
-    void loadComments();
-  }
-}, []);
+    if (!hasLoaded && !loading) {
+      void loadComments();
+    }
+  }, []);
 
   const handlePost = async () => {
     if (!trimmedDraft || submitting) return;
@@ -215,156 +236,170 @@ export function CommentsPanel({
   };
 
   return (
-     <div className="flex h-full flex-col">
-        
-        <div className="relative flex h-full flex-col rounded-md border border-zinc-200 bg-white p-3">
-          {onClose && (
-              <button
-                  type="button"
-                  onClick={onClose}
-                  aria-label="Close comments"
-                  className="
-                      absolute
-                      right-3
-                      top-3
-                      rounded-md
-                      p-1
-                      text-zinc-400
-                      transition-colors
-                      hover:bg-zinc-100
-                      hover:text-zinc-700
-                  "
-              >
-              </button>
+    <div className="flex h-full flex-col bg-white">
+      {/* Header */}
+      <div className="flex shrink-0 items-center justify-between border-b border-zinc-100 px-4 py-3">
+        <h3 className="text-[13px] font-semibold text-zinc-800">
+          Comments
+          {comments.length > 0 && (
+            <span className="ml-1.5 font-normal text-zinc-400">
+              {comments.length}
+            </span>
           )}
-
-        <h3 className="mb-2 text-[13px] font-medium text-zinc-500">
-            Comments
         </h3>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close comments"
+            className="rounded-md p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
 
-          {loading ? (
-            <div className="mb-3 flex items-center gap-2 px-1 py-2 text-xs text-zinc-500">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Loading comments
-            </div>
-          ) : comments.length === 0 ? (
-            <div className="mb-3 px-1 py-2 text-xs text-zinc-400">No comments yet</div>
-          ) : (
-            <div className="mb-3 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-              {comments.map((comment) => {
-                const canManageComment =
-                  canManageAll || comment.user_id === currentUserId;
-                const isEditing = editingId === comment.id;
-                const isPending = pendingIds.has(comment.id);
+      {/* Body */}
+      {loading ? (
+        <div className="flex flex-1 items-center justify-center gap-2 text-xs text-zinc-400">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Loading comments
+        </div>
+      ) : comments.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-50">
+            <MessageSquare className="h-4 w-4 text-zinc-300" />
+          </div>
+          <p className="text-xs text-zinc-400">No comments yet</p>
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3">
+          {comments.map((comment) => {
+            const canManageComment =
+              canManageAll || comment.user_id === currentUserId;
+            const isEditing = editingId === comment.id;
+            const isPending = pendingIds.has(comment.id);
+            const avatarColor = getAvatarColor(comment.user_id || comment.id);
 
-                return (
-                  <div key={comment.id} className="flex gap-2">
-                    
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs font-semibold text-zinc-600">
-                      {getInitial(comment)}
+            return (
+              <div
+                key={comment.id}
+                className={cn(
+                  "group relative rounded-lg border border-zinc-100 bg-white p-2.5 transition-colors",
+                  isEditing ? "border-2 border-indigo-400" : "hover:border-zinc-200 hover:bg-zinc-50/60"
+                )}
+              >
+                <div className="flex gap-2.5">
+                  <div
+                    className={cn(
+                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                      avatarColor.bg,
+                      avatarColor.text
+                    )}
+                  >
+                    {getInitial(comment)}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex min-w-0 items-baseline gap-1.5">
+                      <span className="truncate text-xs font-semibold text-zinc-800">
+                        {getAuthorName(comment)}
+                      </span>
+                      <span className="shrink-0 text-[11px] text-zinc-400">
+                        {formatTimestamp(comment.updated_at)}
+                      </span>
                     </div>
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex min-w-0 items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="truncate text-xs font-medium text-zinc-800">
-                            {getAuthorName(comment)}
-                          </div>
-                          <div className="text-[11px] text-zinc-400">
-                            {formatTimestamp(comment.updated_at)}
-                          </div>
-                        </div>
-                        {canManageComment ? (
-                          <div className="flex shrink-0 items-center gap-1">
-                            {isEditing ? (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => void commitEdit(comment)}
-                                  disabled={!editDraft.trim() || isPending}
-                                  className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
-                                  aria-label="Save comment"
-                                >
-                                  <Check className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={cancelEdit}
-                                  className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-800"
-                                  aria-label="Cancel edit"
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => beginEdit(comment)}
-                                  disabled={isPending}
-                                  className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
-                                  aria-label="Edit comment"
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => void handleDelete(comment)}
-                                  disabled={isPending}
-                                  className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
-                                  aria-label="Delete comment"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        ) : null}
-                      </div>
 
-                      {isEditing ? (
-                        <div className="rounded-md border border-zinc-200 bg-white p-0.5 transition-[box-shadow,border-color] focus-within:border-transparent focus-within:ring-2 focus-within:ring-indigo-500">
+                    {isEditing ? (
+                      <div className="space-y-1.5 pt-0.5">
+                        <div className="rounded-md border border-indigo-600 bg-white">
                           <textarea
                             value={editDraft}
                             onChange={(event) => setEditDraft(event.target.value)}
                             rows={2}
                             maxLength={4000}
-                            className="w-full resize-none rounded-[5px] border border-transparent bg-transparent px-2.5 py-2 text-sm text-zinc-700 outline-none"
+                            autoFocus
+                            className="w-full resize-none rounded-md bg-transparent px-2.5 py-2 text-sm text-zinc-700 outline-none"
                           />
                         </div>
-                      ) : (
-                        <p className="whitespace-pre-wrap break-words text-sm text-zinc-700">
-                          {comment.content}
-                        </p>
-                      )}
-                    </div>
+                        <div className="flex justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={cancelEdit}
+                            className="rounded-md px-2 py-1 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void commitEdit(comment)}
+                            disabled={!editDraft.trim() || isPending}
+                            className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+                          >
+                            {isPending ? "Saving" : "Save"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-600">
+                        {comment.content}
+                      </p>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          )}
+                </div>
 
-          <div className="mt-auto rounded-md border border-zinc-200 bg-white p-0.5 transition-[box-shadow,border-color] focus-within:border-transparent focus-within:ring-2 focus-within:ring-indigo-500">
-            <textarea
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={handleComposeKeyDown}
-              rows={2}
-              maxLength={4000}
-              placeholder="Add a comment"
-              className="w-full resize-none rounded-[5px] border border-transparent bg-transparent px-2.5 py-2 text-sm text-zinc-700 placeholder:text-zinc-400 outline-none"
-            />
-            <div className="flex justify-end px-1 pb-1">
-              <button
-                type="button"
-                onClick={() => void handlePost()}
-                disabled={!trimmedDraft || submitting}
-                className="inline-flex min-h-8 items-center justify-center rounded-md bg-zinc-900 px-3 text-xs font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500"
-              >
-                {submitting ? "Posting" : "Post"}
-              </button>
-            </div>
+                {canManageComment && !isEditing && (
+                  <div className="absolute right-2 top-2 flex items-center gap-0.5 rounded-md border border-zinc-200 bg-white p-0.5 opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
+                    <button
+                      type="button"
+                      onClick={() => beginEdit(comment)}
+                      disabled={isPending}
+                      className="rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Edit comment"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete(comment)}
+                      disabled={isPending}
+                      className="rounded p-1 text-zinc-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Delete comment"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Composer */}
+      <div className="shrink-0 border-t border-zinc-100 p-3">
+        <div className="rounded-lg border border-zinc-200 bg-white transition-[border-color] focus-within:border-transparent focus-within:ring-2 focus-within:ring-indigo-500">
+          <textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={handleComposeKeyDown}
+            rows={2}
+            maxLength={4000}
+            placeholder="Add a comment"
+            className="w-full resize-none rounded-t-lg bg-transparent px-3 py-2.5 text-sm text-zinc-700 placeholder:text-zinc-400 outline-none"
+          />
+          <div className="flex items-center justify-between border-t border-zinc-100 px-2 py-1.5">
+            <span className="px-1 text-[11px] text-zinc-300">⌘⏎ to send</span>
+            <button
+              type="button"
+              onClick={() => void handlePost()}
+              disabled={!trimmedDraft || submitting}
+              className="inline-flex min-h-7 items-center justify-center rounded-md bg-blue-600 px-3 text-xs font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
+            >
+              {submitting ? "Posting" : "Post"}
+            </button>
           </div>
         </div>
       </div>
+    </div>
   );
 }
