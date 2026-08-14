@@ -232,26 +232,28 @@ export function TaskDetailsPanel({
               <div className="flex items-center gap-4">
                 <span className="w-28 shrink-0 text-sm text-zinc-500">Start date</span>
                 <DatePicker
-                  disabled={dateDisabled}
+                  disabled={!canManage}
                   value={task.start_date || ""}
                   variant="ghost"
-                  className="-ml-0 h-auto px-0 py-0 text-sm font-normal text-zinc-700 hover:bg-transparent hover:text-zinc-900"
+                  className="-ml-0 h-auto px-0 py-0 text-sm font-normal text-zinc-600 hover:bg-transparent hover:text-zinc-900"
                   placeholder="Not set"
-                  ghostPlaceholder
-                  onChange={async (val) => { await onCommitUpdate(task.id, { start_date: val || null }); }}
+                  onChange={async (val) => {
+                    await onCommitUpdate(task.id, { start_date: val || null });
+                  }}
                 />
               </div>
 
               <div className="flex items-center gap-4">
                 <span className="w-28 shrink-0 text-sm text-zinc-500">Due date</span>
                 <DatePicker
-                  disabled={dateDisabled}
+                  disabled={!canManage}
                   value={task.due_date || ""}
                   variant="ghost"
-                  className="-ml-0 h-auto px-0 py-0 text-sm font-normal text-zinc-700 hover:bg-transparent hover:text-zinc-900"
+                  className="h-auto px-0 py-0 text-sm font-normal text-zinc-600 hover:bg-transparent hover:text-zinc-900"
                   placeholder="Not set"
-                  ghostPlaceholder
-                  onChange={async (val) => { await onCommitUpdate(task.id, { due_date: val || null }); }}
+                  onChange={async (val) => {
+                    await onCommitUpdate(task.id, { due_date: val || null });
+                  }}
                 />
               </div>
 

@@ -17,7 +17,7 @@ import { deleteTask as deleteTaskService, getTaskById } from "@/services/task/ta
 interface TaskTableUpdate {
   title?: string;
   description?: string;
-  due_date?: string;
+  due_date?: string | null;
   status?: "todo" | "in_progress" | "blocked" | "done";
 }
 
