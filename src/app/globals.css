@@ -179,7 +179,7 @@ body {
     }
   body {
     @apply bg-background text-foreground font-normal;
-    font-family: var(--font-dm-sans), sans-serif;
+    font-family: Roboto, Arial, sans-serif;
     }
 }
 
